@@ -9425,11 +9425,9 @@ static bool ValidateRenderPassDAG(const layer_data *dev_data, RenderPassCreateVe
     return skip;
 }
 
-void PostCallRecordCreateShaderModule(layer_data *dev_data, bool is_spirv, const VkShaderModuleCreateInfo *pCreateInfo,
-                                      VkShaderModule *pShaderModule, uint32_t unique_shader_id) {
-    spv_target_env spirv_environment = ((GetApiVersion(dev_data) >= VK_API_VERSION_1_1) ? SPV_ENV_VULKAN_1_1 : SPV_ENV_VULKAN_1_0);
-    unique_ptr<shader_module> new_shader_module(
-        is_spirv ? new shader_module(pCreateInfo, *pShaderModule, spirv_environment, unique_shader_id) : new shader_module());
+void PostCallRecordCreateShaderModule(layer_data *dev_data, bool spirv_valid, const VkShaderModuleCreateInfo *pCreateInfo,
+                                             VkShaderModule *pShaderModule, uint32_t unique_shader_id) {
+    unique_ptr<shader_module> new_shader_module(spirv_valid ? new shader_module(pCreateInfo, *pShaderModule, unique_shader_id) : new shader_module());
     dev_data->shaderModuleMap[*pShaderModule] = std::move(new_shader_module);
 }
 
