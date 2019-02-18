@@ -461,6 +461,7 @@ const bool wrap_handles = false;
 #include "stateless_validation.h"
 #define OBJECT_LAYER_NAME "VK_LAYER_LUNARG_parameter_validation"
 #elif BUILD_CORE_VALIDATION
+#include "core_validation.h"
 #define OBJECT_LAYER_NAME "VK_LAYER_LUNARG_core_validation"
 #else
 #define OBJECT_LAYER_NAME "VK_LAYER_GOOGLE_unique_objects"
@@ -641,8 +642,12 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *pCreat
     local_object_dispatch.emplace_back(parameter_validation);
     parameter_validation->container_type = LayerObjectTypeParameterValidation;
     parameter_validation->api_version = api_version;
+#elif BUILD_CORE_VALIDATION
+    auto core_checks = new CoreChecks;
+    local_object_dispatch.emplace_back(core_checks);
+    core_checks->container_type = LayerObjectTypeCoreValidation;
+    core_checks->api_version = api_version;
 #endif
-
 
     // Init dispatch array and call registration functions
     for (auto intercept : local_object_dispatch) {
@@ -685,6 +690,11 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *pCreat
 #elif BUILD_PARAMETER_VALIDATION
     layer_debug_messenger_actions(framework->report_data, framework->logging_messenger, pAllocator, "lunarg_parameter_validation");
     parameter_validation->report_data = framework->report_data;
+#elif BUILD_CORE_VALIDATION
+    layer_debug_messenger_actions(framework->report_data, framework->logging_messenger, pAllocator, "lunarg_core_validation");
+    core_checks->report_data = framework->report_data;
+    core_checks->instance_dispatch_table = framework->instance_dispatch_table;
+    core_checks->instance = *pInstance;
 #else
     layer_debug_messenger_actions(framework->report_data, framework->logging_messenger, pAllocator, "lunarg_unique_objects");
 #endif
@@ -827,6 +837,22 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice gpu, const VkDevice
     stateless_validation->device_dispatch_table = device_interceptor->device_dispatch_table;
     stateless_validation->api_version = device_interceptor->api_version;
     device_interceptor->object_dispatch.emplace_back(stateless_validation);
+#elif BUILD_CORE_VALIDATION
+    auto core_checks = new CoreChecks;
+    // TODO:  Initialize child objects with parent info thru constuctor taking a parent object
+    core_checks->container_type = LayerObjectTypeCoreValidation;
+    core_checks->physical_device = gpu;
+    core_checks->instance = instance_interceptor->instance;
+    core_checks->report_data = device_interceptor->report_data;
+    core_checks->device_dispatch_table = device_interceptor->device_dispatch_table;
+    core_checks->instance_dispatch_table = instance_interceptor->instance_dispatch_table;
+    core_checks->api_version = device_interceptor->api_version;
+    core_checks->instance_extensions = instance_interceptor->instance_extensions;
+    core_checks->device_extensions = device_interceptor->device_extensions;
+    core_checks->enabled = instance_interceptor->enabled;
+    core_checks->disabled = instance_interceptor->disabled;
+    core_checks->device = *pDevice;
+    device_interceptor->object_dispatch.emplace_back(core_checks);
 #endif
 
     for (auto intercept : instance_interceptor->object_dispatch) {
