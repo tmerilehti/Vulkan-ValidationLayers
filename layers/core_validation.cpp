@@ -3815,6 +3815,7 @@ bool PreCallValidateFreeMemory(VkDevice device, VkDeviceMemory mem, const VkAllo
 
 void PreCallRecordFreeMemory(VkDevice device, VkDeviceMemory mem, const VkAllocationCallbacks *pAllocator) {
     layer_data *device_data = GetLayerDataPtr(get_dispatch_key(device), layer_data_map);
+    if (!mem) return;
     DEVICE_MEM_INFO *mem_info = GetMemObjInfo(device_data, mem);
     VK_OBJECT obj_struct = {HandleToUint64(mem), kVulkanObjectTypeDeviceMemory};
 
