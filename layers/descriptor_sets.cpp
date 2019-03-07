@@ -749,7 +749,7 @@ bool cvdescriptorset::DescriptorSet::ValidateDrawState(const std::map<uint32_t, 
                         return false;
                     } else if (!buffer_node->sparse) {
                         for (auto mem_binding : buffer_node->GetBoundMemory()) {
-                            if (!device_data_->GetMemObjInfo(device_data_, mem_binding)) {
+                            if (!device_data_->GetMemObjInfo(mem_binding)) {
                                 std::stringstream error_str;
                                 error_str << "Descriptor in binding #" << binding << " at global descriptor index " << i
                                           << " uses buffer " << buffer << " that references invalid memory " << mem_binding << ".";
@@ -1101,9 +1101,8 @@ bool cvdescriptorset::DescriptorSet::ValidateCopyUpdate(const debug_report_data 
                   << ") layout was created with the "
                      "ename:VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT flag "
                      "set, then pname:dstSet's ("
-                  << update->dstSet
-                  << ") layout must: also have been created with the "
-                     "ename:VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT flag set";
+                  << update->dstSet << ") layout must: also have been created with the "
+                                       "ename:VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT flag set";
         *error_msg = error_str.str();
         return false;
     }
@@ -1116,9 +1115,8 @@ bool cvdescriptorset::DescriptorSet::ValidateCopyUpdate(const debug_report_data 
                   << ") layout was created without the "
                      "ename:VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT flag "
                      "set, then pname:dstSet's ("
-                  << update->dstSet
-                  << ") layout must: also have been created without the "
-                     "ename:VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT flag set";
+                  << update->dstSet << ") layout must: also have been created without the "
+                                       "ename:VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT flag set";
         *error_msg = error_str.str();
         return false;
     }

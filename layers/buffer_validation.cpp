@@ -1526,12 +1526,12 @@ void CoreChecks::PreCallRecordDestroyImage(VkDevice device, VkImage image, const
     InvalidateCommandBuffers(device_data, image_state->cb_bindings, obj_struct);
     // Clean up memory mapping, bindings and range references for image
     for (auto mem_binding : image_state->GetBoundMemory()) {
-        auto mem_info = GetMemObjInfo(device_data, mem_binding);
+        auto mem_info = GetMemObjInfo(mem_binding);
         if (mem_info) {
             RemoveImageMemoryRange(obj_struct.handle, mem_info);
         }
     }
-    ClearMemoryObjectBindings(device_data, obj_struct.handle, kVulkanObjectTypeImage);
+    ClearMemoryObjectBindings(obj_struct.handle, kVulkanObjectTypeImage);
     EraseQFOReleaseBarriers<VkImageMemoryBarrier>(device_data, image);
     // Remove image from imageMap
     GetImageMap(device_data)->erase(image);
@@ -1825,10 +1825,10 @@ static bool RegionIntersects(const VkImageCopy *rgn0, const VkImageCopy *rgn1, V
         switch (type) {
             case VK_IMAGE_TYPE_3D:
                 result &= RangesIntersect(rgn0->srcOffset.z, rgn0->extent.depth, rgn1->dstOffset.z, rgn1->extent.depth);
-                // fall through
+            // fall through
             case VK_IMAGE_TYPE_2D:
                 result &= RangesIntersect(rgn0->srcOffset.y, rgn0->extent.height, rgn1->dstOffset.y, rgn1->extent.height);
-                // fall through
+            // fall through
             case VK_IMAGE_TYPE_1D:
                 result &= RangesIntersect(rgn0->srcOffset.x, rgn0->extent.width, rgn1->dstOffset.x, rgn1->extent.width);
                 break;
@@ -2028,11 +2028,11 @@ bool CoreChecks::CheckItgExtent(layer_data *device_data, const GLOBAL_CB_NODE *c
             case VK_IMAGE_TYPE_3D:
                 z_ok = ((0 == SafeModulo(extent->depth, granularity->depth)) ||
                         (subresource_extent->depth == offset_extent_sum.depth));
-                // fall through
+            // fall through
             case VK_IMAGE_TYPE_2D:
                 y_ok = ((0 == SafeModulo(extent->height, granularity->height)) ||
                         (subresource_extent->height == offset_extent_sum.height));
-                // fall through
+            // fall through
             case VK_IMAGE_TYPE_1D:
                 x_ok = ((0 == SafeModulo(extent->width, granularity->width)) ||
                         (subresource_extent->width == offset_extent_sum.width));
@@ -4531,12 +4531,12 @@ void CoreChecks::PreCallRecordDestroyBuffer(VkDevice device, VkBuffer buffer, co
 
     InvalidateCommandBuffers(device_data, buffer_state->cb_bindings, obj_struct);
     for (auto mem_binding : buffer_state->GetBoundMemory()) {
-        auto mem_info = GetMemObjInfo(device_data, mem_binding);
+        auto mem_info = GetMemObjInfo(mem_binding);
         if (mem_info) {
             RemoveBufferMemoryRange(HandleToUint64(buffer), mem_info);
         }
     }
-    ClearMemoryObjectBindings(device_data, HandleToUint64(buffer), kVulkanObjectTypeBuffer);
+    ClearMemoryObjectBindings(HandleToUint64(buffer), kVulkanObjectTypeBuffer);
     EraseQFOReleaseBarriers<VkBufferMemoryBarrier>(device_data, buffer);
     GetBufferMap(device_data)->erase(buffer_state->buffer);
 }
