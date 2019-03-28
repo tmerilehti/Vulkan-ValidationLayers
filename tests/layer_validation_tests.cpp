@@ -14476,16 +14476,19 @@ TEST_F(VkLayerTest, FillBufferWithinRenderPass) {
 
 TEST_F(VkLayerTest, InvalidDeviceMask) {
     TEST_DESCRIPTION("Invalid deviceMask.");
+    printf("InvalidDeviceMask: setup VK_API_VERSION_1_1\n");
     SetTargetApiVersion(VK_API_VERSION_1_1);
-
+    printf("InvalidDeviceMask: init add VK_KHR_SURFACE_EXTENSION_NAME\n");
     if (InstanceExtensionSupported(VK_KHR_SURFACE_EXTENSION_NAME)) {
         m_instance_extension_names.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
     } else {
         printf("%s KHR surface extension not supported, skipping test\n", kSkipPrefix);
         return;
     }
+    printf("InvalidDeviceMask: complete add VK_KHR_SURFACE_EXTENSION_NAME\n");
     bool support_surface = false;
 #ifdef VK_USE_PLATFORM_WIN32_KHR
+    printf("InvalidDeviceMask: init add VK_KHR_WIN32_SURFACE_EXTENSION_NAME\n");
     if (InstanceExtensionSupported(VK_KHR_WIN32_SURFACE_EXTENSION_NAME)) {
         m_instance_extension_names.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
     } else {
@@ -14493,7 +14496,9 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
         return;
     }
     support_surface = true;
+    printf("InvalidDeviceMask: complete add VK_KHR_WIN32_SURFACE_EXTENSION_NAME\n");
 #elif VK_USE_PLATFORM_XLIB_KHR
+    printf("InvalidDeviceMask: init add VK_KHR_XLIB_SURFACE_EXTENSION_NAME\n");
     if (InstanceExtensionSupported(VK_KHR_XLIB_SURFACE_EXTENSION_NAME)) {
         m_instance_extension_names.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
     } else {
@@ -14501,7 +14506,9 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
         return;
     }
     support_surface = true;
+    printf("InvalidDeviceMask: complete add VK_KHR_XLIB_SURFACE_EXTENSION_NAME\n");
 #elif VK_USE_PLATFORM_ANDROID_KHR
+    printf("InvalidDeviceMask: init add VK_KHR_ANDROID_SURFACE_EXTENSION_NAME\n");
     if (InstanceExtensionSupported(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)) {
         m_instance_extension_names.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
     } else {
@@ -14509,36 +14516,47 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
         return;
     }
     support_surface = true;
+    printf("InvalidDeviceMask: complete add VK_KHR_ANDROID_SURFACE_EXTENSION_NAME\n");
 #endif
     ASSERT_NO_FATAL_FAILURE(InitFramework(myDbgFunc, m_errorMonitor));
-
+    printf("InvalidDeviceMask: init add VK_KHR_SWAPCHAIN_EXTENSION_NAME\n");
     if (DeviceExtensionSupported(gpu(), nullptr, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) {
         m_device_extension_names.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     } else {
         printf("%s KHR swapchain extension not supported, skipping test\n", kSkipPrefix);
         return;
     }
+    printf("InvalidDeviceMask: complete add VK_KHR_SWAPCHAIN_EXTENSION_NAME\n");
+
     if (DeviceValidationVersion() < VK_API_VERSION_1_1) {
-        printf("%s Device Groups requires Vulkan 1.1+.\n", kSkipPrefix);
+        printf("%s Device Groups requires Vulkan 1.1+, skipping test\n", kSkipPrefix);
         return;
     }
+    printf("InvalidDeviceMask: complete check VK_API_VERSION_1_1\n");
+
     uint32_t physical_device_group_count = 0;
     vkEnumeratePhysicalDeviceGroups(instance(), &physical_device_group_count, nullptr);
+    printf("InvalidDeviceMask: complete get physical_device_group_count\n");
 
     if (physical_device_group_count == 0) {
         printf("%s physical_device_group_count is 0, skipping test\n", kSkipPrefix);
         return;
     }
 
-    std::vector<VkPhysicalDeviceGroupProperties> physical_device_group;
-    physical_device_group.resize(physical_device_group_count);
+    printf("InvalidDeviceMask: init physical_device_group vector count: %d\n", physical_device_group_count);
+    std::vector<VkPhysicalDeviceGroupProperties> physical_device_group(physical_device_group_count,
+                                                                       {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES});
+    printf("InvalidDeviceMask: init get physical_device_group \n");
     vkEnumeratePhysicalDeviceGroups(instance(), &physical_device_group_count, physical_device_group.data());
+    printf("InvalidDeviceMask: complete get physical_device_group\n");
+
     VkDeviceGroupDeviceCreateInfo create_device_pnext = {};
     create_device_pnext.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO;
     create_device_pnext.physicalDeviceCount = physical_device_group[0].physicalDeviceCount;
     create_device_pnext.pPhysicalDevices = physical_device_group[0].physicalDevices;
     ASSERT_NO_FATAL_FAILURE(InitState(nullptr, &create_device_pnext, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT));
     ASSERT_NO_FATAL_FAILURE(InitRenderTarget());
+    printf("InvalidDeviceMask: complete init\n");
 
     // Test VkMemoryAllocateFlagsInfo
     VkMemoryAllocateFlagsInfo alloc_flags_info = {};
@@ -14553,12 +14571,16 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
 
     VkDeviceMemory mem;
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-VkMemoryAllocateFlagsInfo-deviceMask-00675");
+    printf("InvalidDeviceMask: init vkAllocateMemory 0xFFFFFFFF\n");
     vkAllocateMemory(m_device->device(), &alloc_info, NULL, &mem);
     m_errorMonitor->VerifyFound();
+    printf("InvalidDeviceMask: complete vkAllocateMemory 0xFFFFFFFF\n");
 
     alloc_flags_info.deviceMask = 0;
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-VkMemoryAllocateFlagsInfo-deviceMask-00676");
+    printf("InvalidDeviceMask: init vkAllocateMemory 0\n");
     vkAllocateMemory(m_device->device(), &alloc_info, NULL, &mem);
+    printf("InvalidDeviceMask: complete vkAllocateMemory 0\n");
     m_errorMonitor->VerifyFound();
 
     // Test VkDeviceGroupCommandBufferBeginInfo
@@ -14569,23 +14591,35 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
     cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmd_buf_info.pNext = &dev_grp_cmd_buf_info;
 
+    printf("InvalidDeviceMask: init m_commandBuffer->reset()\n");
     m_commandBuffer->reset();
+    printf("InvalidDeviceMask: complete m_commandBuffer->reset()\n");
+
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT,
                                          "VUID-VkDeviceGroupCommandBufferBeginInfo-deviceMask-00106");
+    printf("InvalidDeviceMask: init vkBeginCommandBuffer 0xFFFFFFFF\n");
     vkBeginCommandBuffer(m_commandBuffer->handle(), &cmd_buf_info);
+    printf("InvalidDeviceMask: complete vkBeginCommandBuffer 0xFFFFFFFF\n");
     m_errorMonitor->VerifyFound();
 
     dev_grp_cmd_buf_info.deviceMask = 0;
+    printf("InvalidDeviceMask: init m_commandBuffer->reset()\n");
     m_commandBuffer->reset();
+    printf("InvalidDeviceMask: init m_commandBuffer->reset()\n");
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT,
                                          "VUID-VkDeviceGroupCommandBufferBeginInfo-deviceMask-00107");
+    printf("InvalidDeviceMask: init vkBeginCommandBuffer 0\n");
     vkBeginCommandBuffer(m_commandBuffer->handle(), &cmd_buf_info);
+    printf("InvalidDeviceMask: complete vkBeginCommandBuffer 0\n");
     m_errorMonitor->VerifyFound();
 
     // Test VkDeviceGroupRenderPassBeginInfo
     dev_grp_cmd_buf_info.deviceMask = 0x00000001;
+    printf("InvalidDeviceMask: init m_commandBuffer->reset()\n");
     m_commandBuffer->reset();
+    printf("InvalidDeviceMask: complete m_commandBuffer->reset()\n");
     vkBeginCommandBuffer(m_commandBuffer->handle(), &cmd_buf_info);
+    printf("InvalidDeviceMask: complete vkBeginCommandBuffer 0x00000001\n");
 
     VkDeviceGroupRenderPassBeginInfo dev_grp_rp_info = {};
     dev_grp_rp_info.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_RENDER_PASS_BEGIN_INFO;
@@ -14594,37 +14628,54 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
 
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-VkDeviceGroupRenderPassBeginInfo-deviceMask-00905");
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-VkDeviceGroupRenderPassBeginInfo-deviceMask-00907");
+    printf("InvalidDeviceMask: init vkCmdBeginRenderPass 0xFFFFFFFF\n");
     vkCmdBeginRenderPass(m_commandBuffer->handle(), &m_renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    printf("InvalidDeviceMask: complete vkCmdBeginRenderPass 0xFFFFFFFF\n");
     m_errorMonitor->VerifyFound();
 
     dev_grp_rp_info.deviceMask = 0;
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-VkDeviceGroupRenderPassBeginInfo-deviceMask-00906");
+    printf("InvalidDeviceMask: init vkCmdBeginRenderPass 0\n");
     vkCmdBeginRenderPass(m_commandBuffer->handle(), &m_renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    printf("InvalidDeviceMask: complete vkCmdBeginRenderPass 0\n");
     m_errorMonitor->VerifyFound();
 
     dev_grp_rp_info.deviceMask = 0x00000001;
     dev_grp_rp_info.deviceRenderAreaCount = physical_device_group[0].physicalDeviceCount + 1;
+    printf("InvalidDeviceMask: init deviceRenderAreaCount count: %d\n", dev_grp_rp_info.deviceRenderAreaCount);
     std::vector<VkRect2D> device_render_areas(dev_grp_rp_info.deviceRenderAreaCount, m_renderPassBeginInfo.renderArea);
+    printf("InvalidDeviceMask: complete deviceRenderAreaCount\n");
+
     dev_grp_rp_info.pDeviceRenderAreas = device_render_areas.data();
 
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT,
                                          "VUID-VkDeviceGroupRenderPassBeginInfo-deviceRenderAreaCount-00908");
+    printf("InvalidDeviceMask: init vkCmdBeginRenderPass deviceRenderAreaCount\n");
     vkCmdBeginRenderPass(m_commandBuffer->handle(), &m_renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    printf("InvalidDeviceMask: complete vkCmdBeginRenderPass deviceRenderAreaCount\n");
     m_errorMonitor->VerifyFound();
 
     // Test vkCmdSetDeviceMask()
+    printf("InvalidDeviceMask: init vkCmdSetDeviceMask 0x00000001\n");
     vkCmdSetDeviceMask(m_commandBuffer->handle(), 0x00000001);
+    printf("InvalidDeviceMask: complete vkCmdSetDeviceMask 0x00000001\n");
 
     dev_grp_rp_info.deviceRenderAreaCount = physical_device_group[0].physicalDeviceCount;
+    printf("InvalidDeviceMask: init vkCmdBeginRenderPass correct\n");
     vkCmdBeginRenderPass(m_commandBuffer->handle(), &m_renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    printf("InvalidDeviceMask: complete vkCmdBeginRenderPass correct\n");
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdSetDeviceMask-deviceMask-00108");
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdSetDeviceMask-deviceMask-00110");
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdSetDeviceMask-deviceMask-00111");
+    printf("InvalidDeviceMask: init vkCmdSetDeviceMask 0xFFFFFFFF\n");
     vkCmdSetDeviceMask(m_commandBuffer->handle(), 0xFFFFFFFF);
+    printf("InvalidDeviceMask: complete vkCmdSetDeviceMask 0xFFFFFFFF\n");
     m_errorMonitor->VerifyFound();
 
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdSetDeviceMask-deviceMask-00109");
+    printf("InvalidDeviceMask: init vkCmdSetDeviceMask 0\n");
     vkCmdSetDeviceMask(m_commandBuffer->handle(), 0);
+    printf("InvalidDeviceMask: complete vkCmdSetDeviceMask 0\n");
     m_errorMonitor->VerifyFound();
 
     VkSemaphoreCreateInfo semaphore_create_info = {};
@@ -14641,6 +14692,7 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
     if (support_surface) {
         // Test VkAcquireNextImageInfoKHR
         ASSERT_NO_FATAL_FAILURE(InitSwapchain());
+        printf("InvalidDeviceMask: complete InitSwapchain\n");
 
         uint32_t imageIndex = 0;
         VkAcquireNextImageInfoKHR acquire_next_image_info = {};
@@ -14651,26 +14703,39 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
         acquire_next_image_info.deviceMask = 0xFFFFFFFF;
 
         m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-VkAcquireNextImageInfoKHR-deviceMask-01290");
+        printf("InvalidDeviceMask: init vkAcquireNextImage2KHR 0xFFFFFFFF\n");
         vkAcquireNextImage2KHR(m_device->device(), &acquire_next_image_info, &imageIndex);
+        printf("InvalidDeviceMask: complete vkAcquireNextImage2KHR 0xFFFFFFFF\n");
         m_errorMonitor->VerifyFound();
 
+        printf("InvalidDeviceMask: init vkWaitForFences\n");
         vkWaitForFences(m_device->device(), 1, &fence, VK_TRUE, std::numeric_limits<int>::max());
+        printf("InvalidDeviceMask: init vkResetFences\n");
         vkResetFences(m_device->device(), 1, &fence);
+        printf("InvalidDeviceMask: complete vkResetFences\n");
 
         acquire_next_image_info.semaphore = semaphore2;
         acquire_next_image_info.deviceMask = 0;
 
         m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-VkAcquireNextImageInfoKHR-deviceMask-01291");
+        printf("InvalidDeviceMask: init vkAcquireNextImage2KHR 0\n");
         vkAcquireNextImage2KHR(m_device->device(), &acquire_next_image_info, &imageIndex);
+        printf("InvalidDeviceMask: complete vkAcquireNextImage2KHR 0\n");
         m_errorMonitor->VerifyFound();
+
+        printf("InvalidDeviceMask: init DestroySwapchain\n");
         DestroySwapchain();
+        printf("InvalidDeviceMask: complete DestroySwapchain\n");
+
     }
 
     // Test VkDeviceGroupSubmitInfo
     VkDeviceGroupSubmitInfo device_group_submit_info = {};
     device_group_submit_info.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO;
     device_group_submit_info.commandBufferCount = 1;
+    printf("InvalidDeviceMask: init command_buffer_device_masks\n");
     std::array<uint32_t, 1> command_buffer_device_masks = {0xFFFFFFFF};
+    printf("InvalidDeviceMask: complete command_buffer_device_masks\n");
     device_group_submit_info.pCommandBufferDeviceMasks = command_buffer_device_masks.data();
 
     VkSubmitInfo submit_info = {};
@@ -14679,19 +14744,33 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &m_commandBuffer->handle();
 
+    printf("InvalidDeviceMask: init m_commandBuffer->reset()\n");
     m_commandBuffer->reset();
+    printf("InvalidDeviceMask: init vkBeginCommandBuffer\n");
     vkBeginCommandBuffer(m_commandBuffer->handle(), &cmd_buf_info);
+    printf("InvalidDeviceMask: init vkEndCommandBuffer\n");
     vkEndCommandBuffer(m_commandBuffer->handle());
+    printf("InvalidDeviceMask: complete vkEndCommandBuffer\n");
+
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT,
                                          "VUID-VkDeviceGroupSubmitInfo-pCommandBufferDeviceMasks-00086");
+    printf("InvalidDeviceMask: init vkQueueSubmit\n");
     vkQueueSubmit(m_device->m_queue, 1, &submit_info, VK_NULL_HANDLE);
-    m_errorMonitor->VerifyFound();
-    vkQueueWaitIdle(m_device->m_queue);
+    printf("InvalidDeviceMask: complete vkQueueSubmit\n");
 
+    m_errorMonitor->VerifyFound();
+
+    printf("InvalidDeviceMask: end vkQueueWaitIdle\n");
+    vkQueueWaitIdle(m_device->m_queue);
+    printf("InvalidDeviceMask: end vkWaitForFences\n");
     vkWaitForFences(m_device->device(), 1, &fence, VK_TRUE, std::numeric_limits<int>::max());
+    printf("InvalidDeviceMask: end vkDestroyFence\n");
     vkDestroyFence(m_device->device(), fence, nullptr);
+    printf("InvalidDeviceMask: end vkDestroySemaphore semaphore\n");
     vkDestroySemaphore(m_device->device(), semaphore, nullptr);
+    printf("InvalidDeviceMask: end vkDestroySemaphore semaphore2\n");
     vkDestroySemaphore(m_device->device(), semaphore2, nullptr);
+    printf("InvalidDeviceMask: passed\n");
 }
 
 TEST_F(VkLayerTest, UpdateBufferWithinRenderPass) {
