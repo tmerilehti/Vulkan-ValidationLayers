@@ -2540,6 +2540,101 @@ TEST_F(VkLayerTest, SparseResidencyImageCreateUnsupportedSamples) {
     }
 }
 
+TEST_F(VkLayerTest, ValidateStride) {
+    TEST_DESCRIPTION("Validate Stride.");
+    ASSERT_NO_FATAL_FAILURE(Init());
+    ASSERT_NO_FATAL_FAILURE(InitViewport());
+    ASSERT_NO_FATAL_FAILURE(InitRenderTarget());
+
+    VkQueryPool query_pool;
+    VkQueryPoolCreateInfo query_pool_ci{};
+    query_pool_ci.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    query_pool_ci.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    query_pool_ci.queryCount = 1;
+    vkCreateQueryPool(m_device->device(), &query_pool_ci, nullptr, &query_pool);
+
+    char data_space;
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkGetQueryPoolResults-flags-00814");
+    vkGetQueryPoolResults(m_device->handle(), query_pool, 0, 1, sizeof(data_space), &data_space, 1, VK_QUERY_RESULT_WAIT_BIT);
+    m_errorMonitor->VerifyFound();
+
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkGetQueryPoolResults-flags-00815");
+    vkGetQueryPoolResults(m_device->handle(), query_pool, 0, 1, sizeof(data_space), &data_space, 1, VK_QUERY_RESULT_64_BIT);
+    m_errorMonitor->VerifyFound();
+
+    char data_space4[4];
+    m_errorMonitor->ExpectSuccess();
+    vkGetQueryPoolResults(m_device->handle(), query_pool, 0, 1, sizeof(data_space4), &data_space4, 4, VK_QUERY_RESULT_WAIT_BIT);
+    m_errorMonitor->VerifyNotFound();
+
+    char data_space8[8];
+    m_errorMonitor->ExpectSuccess();
+    vkGetQueryPoolResults(m_device->handle(), query_pool, 0, 1, sizeof(data_space8), &data_space8, 8, VK_QUERY_RESULT_64_BIT);
+    m_errorMonitor->VerifyNotFound();
+
+    uint32_t qfi = 0;
+    VkBufferCreateInfo buff_create_info = {};
+    buff_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buff_create_info.size = 128;
+    buff_create_info.usage =
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    buff_create_info.queueFamilyIndexCount = 1;
+    buff_create_info.pQueueFamilyIndices = &qfi;
+    VkBufferObj buffer;
+    buffer.init(*m_device, buff_create_info);
+
+    m_commandBuffer->begin();
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdCopyQueryPoolResults-flags-00822");
+    vkCmdCopyQueryPoolResults(m_commandBuffer->handle(), query_pool, 0, 1, buffer.handle(), 1, 1, VK_QUERY_RESULT_WAIT_BIT);
+    m_errorMonitor->VerifyFound();
+
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdCopyQueryPoolResults-flags-00823");
+    vkCmdCopyQueryPoolResults(m_commandBuffer->handle(), query_pool, 0, 1, buffer.handle(), 1, 1, VK_QUERY_RESULT_64_BIT);
+    m_errorMonitor->VerifyFound();
+
+    m_errorMonitor->ExpectSuccess();
+    vkCmdCopyQueryPoolResults(m_commandBuffer->handle(), query_pool, 0, 1, buffer.handle(), 4, 4, VK_QUERY_RESULT_WAIT_BIT);
+    m_errorMonitor->VerifyNotFound();
+
+    m_errorMonitor->ExpectSuccess();
+    vkCmdCopyQueryPoolResults(m_commandBuffer->handle(), query_pool, 0, 1, buffer.handle(), 8, 8, VK_QUERY_RESULT_64_BIT);
+    m_errorMonitor->VerifyNotFound();
+
+    if (m_device->phy().features().multiDrawIndirect) {
+        CreatePipelineHelper helper(*this);
+        helper.InitInfo();
+        helper.InitState();
+        helper.CreateGraphicsPipeline();
+        m_commandBuffer->BeginRenderPass(m_renderPassBeginInfo);
+        vkCmdBindPipeline(m_commandBuffer->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, helper.pipeline_);
+
+        m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndirect-drawCount-00476");
+        m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndirect-drawCount-00488");
+        vkCmdDrawIndirect(m_commandBuffer->handle(), buffer.handle(), 0, 100, 2);
+        m_errorMonitor->VerifyFound();
+
+        m_errorMonitor->ExpectSuccess();
+        vkCmdDrawIndirect(m_commandBuffer->handle(), buffer.handle(), 0, 2, 24);
+        m_errorMonitor->VerifyNotFound();
+
+        vkCmdBindIndexBuffer(m_commandBuffer->handle(), buffer.handle(), 0, VK_INDEX_TYPE_UINT16);
+        m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndexedIndirect-drawCount-00528");
+        m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndexedIndirect-drawCount-00540");
+        vkCmdDrawIndexedIndirect(m_commandBuffer->handle(), buffer.handle(), 0, 100, 2);
+        m_errorMonitor->VerifyFound();
+
+        m_errorMonitor->ExpectSuccess();
+        vkCmdDrawIndexedIndirect(m_commandBuffer->handle(), buffer.handle(), 0, 2, 24);
+        m_errorMonitor->VerifyNotFound();
+
+        vkCmdEndRenderPass(m_commandBuffer->handle());
+        m_commandBuffer->end();
+    } else {
+        printf("%s Test requires unsupported multiDrawIndirect feature. Skipped.\n", kSkipPrefix);
+    }
+    vkDestroyQueryPool(m_device->handle(), query_pool, NULL);
+}
+
 TEST_F(VkLayerTest, GpuValidationArrayOOB) {
     TEST_DESCRIPTION(
         "GPU validation: Verify detection of out-of-bounds descriptor array indexing and use of uninitialized descriptors.");
@@ -35960,8 +36055,10 @@ TEST_F(VkLayerTest, DrawIndirectCountKHR) {
     m_errorMonitor->VerifyFound();
 
     // VUID-vkCmdDrawIndirectCountKHR-stride-03110
+    // VUID-vkCmdDrawIndirectCountKHR-maxDrawCount-03111
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndirectCountKHR-stride-03110");
-    vkCmdDrawIndirectCountKHR(m_commandBuffer->handle(), draw_buffer, 0, count_buffer, 0, 1, 1);
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndirectCountKHR-maxDrawCount-03111");
+    vkCmdDrawIndirectCountKHR(m_commandBuffer->handle(), draw_buffer, 0, count_buffer, 0, 2, 1);
     m_errorMonitor->VerifyFound();
 
     // TODO: These covered VUIDs aren't tested. There is also no test coverage for the core Vulkan 1.0 vkCmdDraw* equivalent of
@@ -36114,8 +36211,10 @@ TEST_F(VkLayerTest, DrawIndexedIndirectCountKHR) {
     m_errorMonitor->VerifyFound();
 
     // VUID-vkCmdDrawIndexedIndirectCountKHR-stride-03142
+    // VUID-vkCmdDrawIndexedIndirectCountKHR-maxDrawCount-03143
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndexedIndirectCountKHR-stride-03142");
-    vkCmdDrawIndexedIndirectCountKHR(m_commandBuffer->handle(), draw_buffer, 0, count_buffer, 0, 1, 1);
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawIndexedIndirectCountKHR-maxDrawCount-03143");
+    vkCmdDrawIndexedIndirectCountKHR(m_commandBuffer->handle(), draw_buffer, 0, count_buffer, 0, 2, 1);
     m_errorMonitor->VerifyFound();
 
     // TODO: These covered VUIDs aren't tested. There is also no test coverage for the core Vulkan 1.0 vkCmdDraw* equivalent of
@@ -36930,24 +37029,35 @@ TEST_F(VkLayerTest, MeshShaderNV) {
 
     PFN_vkCmdDrawMeshTasksIndirectNV vkCmdDrawMeshTasksIndirectNV =
         (PFN_vkCmdDrawMeshTasksIndirectNV)vkGetInstanceProcAddr(instance(), "vkCmdDrawMeshTasksIndirectNV");
+    PFN_vkCmdDrawMeshTasksIndirectCountNV vkCmdDrawMeshTasksIndirectCountNV =
+        (PFN_vkCmdDrawMeshTasksIndirectCountNV)vkGetInstanceProcAddr(instance(), "vkCmdDrawMeshTasksIndirectCountNV");
 
     VkBufferCreateInfo buffer_create_info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     buffer_create_info.size = sizeof(uint32_t);
     buffer_create_info.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
-    VkBuffer buffer;
-    VkResult result = vkCreateBuffer(m_device->device(), &buffer_create_info, nullptr, &buffer);
-    ASSERT_VK_SUCCESS(result);
+    VkBufferObj buffer;
+    buffer.init(*m_device, buffer_create_info);
 
     m_commandBuffer->begin();
+    CreatePipelineHelper helper(*this);
+    helper.InitInfo();
+    helper.InitState();
+    helper.CreateGraphicsPipeline();
+    m_commandBuffer->BeginRenderPass(m_renderPassBeginInfo);
+    vkCmdBindPipeline(m_commandBuffer->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, helper.pipeline_);
 
-    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawMeshTasksIndirectNV-drawCount-02146");
     m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawMeshTasksIndirectNV-drawCount-02718");
-    vkCmdDrawMeshTasksIndirectNV(m_commandBuffer->handle(), buffer, 0, 2, 0);
+    vkCmdDrawMeshTasksIndirectNV(m_commandBuffer->handle(), buffer.handle(), 0, 2, 0);
     m_errorMonitor->VerifyFound();
 
-    m_commandBuffer->end();
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT, "VUID-vkCmdDrawMeshTasksIndirectCountNV-stride-02182");
+    m_errorMonitor->SetDesiredFailureMsg(VK_DEBUG_REPORT_ERROR_BIT_EXT,
+                                         "VUID-vkCmdDrawMeshTasksIndirectCountNV-maxDrawCount-02183");
+    vkCmdDrawMeshTasksIndirectCountNV(m_commandBuffer->handle(), buffer.handle(), 0, buffer.handle(), 0, 2, 1);
+    m_errorMonitor->VerifyFound();
 
-    vkDestroyBuffer(m_device->device(), buffer, 0);
+    vkCmdEndRenderPass(m_commandBuffer->handle());
+    m_commandBuffer->end();
 }
 
 TEST_F(VkLayerTest, MeshShaderDisabledNV) {
