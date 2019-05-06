@@ -1566,6 +1566,13 @@ class CoreChecks : public ValidationObject {
     bool ValidateComputeWorkGroupSizes(const SHADER_MODULE_STATE* shader);
     bool ValidateComputeWorkGroupInvocations(CMD_BUFFER_STATE* cb_state, uint32_t groupCountX, uint32_t groupCountY,
                                              uint32_t groupCountZ);
+    bool ValidateQueryPoolStride(const std::string& vuid_not_64, const std::string& vuid_64, const VkDeviceSize stride,
+                                 const char* parameter_name, const uint64_t parameter_value, const VkQueryResultFlags flags);
+    bool ValidateCmdDrawStrideWithStruct(VkCommandBuffer commandBuffer, const std::string& vuid, const uint32_t stride,
+                                         const char* struct_name, const uint32_t struct_size);
+    bool ValidateCmdDrawStrideWithBuffer(VkCommandBuffer commandBuffer, const std::string& vuid, const uint32_t stride,
+                                         const char* struct_name, const uint32_t struct_size, const uint32_t drawCount,
+                                         const VkDeviceSize offset, const BUFFER_STATE* buffer_state);
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     bool PreCallValidateGetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer* buffer,
                                                                   VkAndroidHardwareBufferPropertiesANDROID* pProperties);
