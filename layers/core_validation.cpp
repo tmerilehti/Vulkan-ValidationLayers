@@ -196,7 +196,7 @@ EVENT_STATE *CoreChecks::GetEventState(VkEvent event) {
     if (it == eventMap.end()) {
         return nullptr;
     }
-    return &it->second;
+    return it->second.get();
 }
 
 QUERY_POOL_STATE *CoreChecks::GetQueryPoolState(VkQueryPool query_pool) {
@@ -2781,14 +2781,14 @@ void CoreChecks::RetireWorkOnQueue(QUEUE_STATE *pQueue, uint64_t seq) {
             for (auto event : cb_node->writeEventsBeforeWait) {
                 auto eventNode = eventMap.find(event);
                 if (eventNode != eventMap.end()) {
-                    eventNode->second.write_in_use--;
+                    eventNode->second->write_in_use--;
                 }
             }
             for (auto queryStatePair : cb_node->queryToStateMap) {
                 queryToStateMap[queryStatePair.first] = queryStatePair.second;
             }
             for (auto eventStagePair : cb_node->eventToStageMap) {
-                eventMap[eventStagePair.first].stageMask = eventStagePair.second;
+                eventMap[eventStagePair.first]->stageMask = eventStagePair.second;
             }
 
             cb_node->in_use.fetch_sub(1);
@@ -4140,7 +4140,7 @@ void CoreChecks::PostCallRecordGetQueryPoolResults(VkDevice device, VkQueryPool 
                     auto query_event_pair = cb->waitedEventsBeforeQueryReset.find(query);
                     if (query_event_pair != cb->waitedEventsBeforeQueryReset.end()) {
                         for (auto event : query_event_pair->second) {
-                            eventMap[event].needsSignaled = true;
+                            eventMap[event]->needsSignaled = true;
                         }
                     }
                 }
@@ -11126,9 +11126,11 @@ void CoreChecks::PostCallRecordGetFenceFdKHR(VkDevice device, const VkFenceGetFd
 void CoreChecks::PostCallRecordCreateEvent(VkDevice device, const VkEventCreateInfo *pCreateInfo,
                                            const VkAllocationCallbacks *pAllocator, VkEvent *pEvent, VkResult result) {
     if (VK_SUCCESS != result) return;
-    eventMap[*pEvent].needsSignaled = false;
-    eventMap[*pEvent].write_in_use = 0;
-    eventMap[*pEvent].stageMask = VkPipelineStageFlags(0);
+    std::unique_ptr<EVENT_STATE> event_state(new EVENT_STATE{});
+    event_state->needsSignaled = false;
+    event_state->write_in_use = 0;
+    event_state->stageMask = VkPipelineStageFlags(0);
+    eventMap[*pEvent] = std::move(event_state);
 }
 
 bool CoreChecks::ValidateCreateSwapchain(const char *func_name, VkSwapchainCreateInfoKHR const *pCreateInfo,
