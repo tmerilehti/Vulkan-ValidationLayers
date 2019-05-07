@@ -11453,7 +11453,7 @@ TEST_F(VkLayerTest, InvalidDescriptorSetSamplerDestroyed) {
     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptor_write.pImageInfo = &img_info;
 
-    std::array<VkWriteDescriptorSet, 2> descriptor_writes = {descriptor_write, descriptor_write};
+    std::array<VkWriteDescriptorSet, 2> descriptor_writes = {{descriptor_write, descriptor_write}};
     descriptor_writes[1].dstBinding = 1;
     descriptor_writes[1].pImageInfo = &img_info1;
 
@@ -11599,7 +11599,7 @@ TEST_F(VkLayerTest, ImageDescriptorLayoutMismatch) {
         kInternal,  // Image layout mismatch is *within* a given command buffer
         kExternal   // Image layout mismatch is with the current state of the image, found at QueueSubmit
     };
-    std::array<TestType, 2> test_list = {kInternal, kExternal};
+    std::array<TestType, 2> test_list = {{kInternal, kExternal}};
     const std::vector<std::string> internal_errors = {"VUID-VkDescriptorImageInfo-imageLayout-00344",
                                                       "UNASSIGNED-CoreValidation-DrawState-DescriptorSetNotUpdated"};
     const std::vector<std::string> external_errors = {"UNASSIGNED-CoreValidation-DrawState-InvalidImageLayout"};
@@ -15365,7 +15365,7 @@ TEST_F(VkLayerTest, InvalidDeviceMask) {
     VkDeviceGroupSubmitInfo device_group_submit_info = {};
     device_group_submit_info.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO;
     device_group_submit_info.commandBufferCount = 1;
-    std::array<uint32_t, 1> command_buffer_device_masks = {0xFFFFFFFF};
+    std::array<uint32_t, 1> command_buffer_device_masks = {{0xFFFFFFFF}};
     device_group_submit_info.pCommandBufferDeviceMasks = command_buffer_device_masks.data();
 
     VkSubmitInfo submit_info = {};
@@ -29611,8 +29611,8 @@ TEST_F(VkLayerTest, DescriptorIndexingSetLayout) {
 
     ASSERT_NO_FATAL_FAILURE(InitState(nullptr, &features2));
 
-    std::array<VkDescriptorBindingFlagsEXT, 2> flags = {VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT,
-                                                        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT};
+    std::array<VkDescriptorBindingFlagsEXT, 2> flags = {{VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT,
+                                                         VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT}};
     auto flags_create_info = lvl_init_struct<VkDescriptorSetLayoutBindingFlagsCreateInfoEXT>();
     flags_create_info.bindingCount = (uint32_t)flags.size();
     flags_create_info.pBindingFlags = flags.data();
@@ -35451,8 +35451,8 @@ TEST_F(VkPositiveLayerTest, MultiplaneImageCopyBufferToImage) {
     image.ImageMemoryBarrier(m_commandBuffer, VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-    std::array<VkImageAspectFlagBits, 3> aspects = {VK_IMAGE_ASPECT_PLANE_0_BIT, VK_IMAGE_ASPECT_PLANE_1_BIT,
-                                                    VK_IMAGE_ASPECT_PLANE_2_BIT};
+    std::array<VkImageAspectFlagBits, 3> aspects = {{VK_IMAGE_ASPECT_PLANE_0_BIT, VK_IMAGE_ASPECT_PLANE_1_BIT,
+                                                     VK_IMAGE_ASPECT_PLANE_2_BIT}};
     std::array<VkBufferObj, 3> buffers;
     VkMemoryPropertyFlags reqs = 0;
 
@@ -37065,8 +37065,8 @@ TEST_F(VkLayerTest, InlineUniformBlockEXT) {
         return;
     }
     ASSERT_NO_FATAL_FAILURE(InitFramework(myDbgFunc, m_errorMonitor));
-    std::array<const char *, 2> required_device_extensions = {VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-                                                              VK_EXT_INLINE_UNIFORM_BLOCK_EXTENSION_NAME};
+    std::array<const char *, 2> required_device_extensions = {{VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+                                                               VK_EXT_INLINE_UNIFORM_BLOCK_EXTENSION_NAME}};
     for (auto device_extension : required_device_extensions) {
         if (DeviceExtensionSupported(gpu(), nullptr, device_extension)) {
             m_device_extension_names.push_back(device_extension);
@@ -37078,7 +37078,7 @@ TEST_F(VkLayerTest, InlineUniformBlockEXT) {
 
     // Enable descriptor indexing if supported, but don't require it.
     bool supportsDescriptorIndexing = true;
-    required_device_extensions = {VK_KHR_MAINTENANCE3_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME};
+    required_device_extensions = {{VK_KHR_MAINTENANCE3_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME}};
     for (auto device_extension : required_device_extensions) {
         if (DeviceExtensionSupported(gpu(), nullptr, device_extension)) {
             m_device_extension_names.push_back(device_extension);
