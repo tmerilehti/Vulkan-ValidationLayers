@@ -641,10 +641,7 @@ void cvdescriptorset::DescriptorSet::FilterAndTrackBindingReqs(CMD_BUFFER_STATE 
             // This is rather crude, as the changed layouts may not impact the bound descriptors,
             // but the simple "versioning" is a simple "dirt" test.
             auto &version = image_sample_val[binding];  // Take advantage of default construtor zero initialzing new entries
-            if (version != cb_state->image_layout_change_count) {
-                version = cb_state->image_layout_change_count;
-                out_req->emplace(binding_req_pair);
-            }
+            out_req->emplace(binding_req_pair);
         }
     }
 }

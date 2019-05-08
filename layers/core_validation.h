@@ -41,65 +41,17 @@
 #include <list>
 #include <deque>
 
-enum SyncScope {
-    kSyncScopeInternal,
-    kSyncScopeExternalTemporary,
-    kSyncScopeExternalPermanent,
-};
-
-enum FENCE_STATUS { FENCE_UNSIGNALED, FENCE_INFLIGHT, FENCE_RETIRED };
-
-class FENCE_STATE {
-   public:
-    VkFence fence;
-    VkFenceCreateInfo createInfo;
-    std::pair<VkQueue, uint64_t> signaler;
-    FENCE_STATUS state;
-    SyncScope scope;
-
-    // Default constructor
-    FENCE_STATE() : state(FENCE_UNSIGNALED), scope(kSyncScopeInternal) {}
-};
-
-class SEMAPHORE_STATE : public BASE_NODE {
-   public:
-    std::pair<VkQueue, uint64_t> signaler;
-    bool signaled;
-    SyncScope scope;
-};
-
-class EVENT_STATE : public BASE_NODE {
-   public:
-    int write_in_use;
-    bool needsSignaled;
-    VkPipelineStageFlags stageMask;
-};
-
 class QUEUE_STATE {
    public:
     VkQueue queue;
     uint32_t queueFamilyIndex;
-    std::unordered_map<VkEvent, VkPipelineStageFlags> eventToStageMap;
-    std::unordered_map<QueryObject, bool> queryToStateMap;  // 0 is unavailable, 1 is available
-
     uint64_t seq;
-    std::deque<CB_SUBMISSION> submissions;
-};
-
-class QUERY_POOL_STATE : public BASE_NODE {
-   public:
-    VkQueryPoolCreateInfo createInfo;
 };
 
 struct PHYSICAL_DEVICE_STATE {
-    safe_VkPhysicalDeviceFeatures2 features2 = {};
     VkPhysicalDevice phys_device = VK_NULL_HANDLE;
     uint32_t queue_family_count = 0;
     std::vector<VkQueueFamilyProperties> queue_family_properties;
-    VkSurfaceCapabilitiesKHR surfaceCapabilities = {};
-    std::vector<VkPresentModeKHR> present_modes;
-    std::vector<VkSurfaceFormatKHR> surface_formats;
-    uint32_t display_plane_property_count = 0;
 };
 
 // This structure is used to save data across the CreateGraphicsPipelines down-chain API call
@@ -128,10 +80,6 @@ struct GpuQueue {
     uint32_t queue_family_index;
 };
 
-struct SubresourceRangeErrorCodes {
-    const char *base_mip_err, *mip_count_err, *base_layer_err, *layer_count_err;
-};
-
 inline bool operator==(GpuQueue const& lhs, GpuQueue const& rhs) {
     return (lhs.gpu == rhs.gpu && lhs.queue_family_index == rhs.queue_family_index);
 }
@@ -151,7 +99,6 @@ struct GpuValidationState;
 class CoreChecks : public ValidationObject {
    public:
     unordered_map<VkPipeline, std::unique_ptr<PIPELINE_STATE>> pipelineMap;
-    unordered_map<VkFramebuffer, std::unique_ptr<FRAMEBUFFER_STATE>> frameBufferMap;
     unordered_map<VkShaderModule, std::unique_ptr<SHADER_MODULE_STATE>> shaderModuleMap;
     unordered_map<VkDescriptorUpdateTemplateKHR, std::unique_ptr<TEMPLATE_STATE>> desc_template_map;
     unordered_map<VkDescriptorPool, std::unique_ptr<DESCRIPTOR_POOL_STATE>> descriptorPoolMap;
@@ -159,12 +106,7 @@ class CoreChecks : public ValidationObject {
     unordered_map<VkCommandBuffer, std::unique_ptr<CMD_BUFFER_STATE>> commandBufferMap;
     unordered_map<VkCommandPool, std::unique_ptr<COMMAND_POOL_STATE>> commandPoolMap;
     unordered_map<VkPipelineLayout, std::unique_ptr<PIPELINE_LAYOUT_STATE>> pipelineLayoutMap;
-    unordered_map<VkFence, std::unique_ptr<FENCE_STATE>> fenceMap;
-    unordered_map<VkQueryPool, std::unique_ptr<QUERY_POOL_STATE>> queryPoolMap;
-    unordered_map<VkSemaphore, std::unique_ptr<SEMAPHORE_STATE>> semaphoreMap;
     unordered_map<VkQueue, QUEUE_STATE> queueMap;
-    unordered_map<VkEvent, EVENT_STATE> eventMap;
-
     unordered_map<VkRenderPass, std::shared_ptr<RENDER_PASS_STATE>> renderPassMap;
     unordered_map<VkDescriptorSetLayout, std::shared_ptr<cvdescriptorset::DescriptorSetLayout>> descriptorSetLayoutMap;
 
@@ -213,14 +155,9 @@ class CoreChecks : public ValidationObject {
     PIPELINE_STATE* GetPipelineState(VkPipeline pipeline);
     RENDER_PASS_STATE* GetRenderPassState(VkRenderPass renderpass);
     std::shared_ptr<RENDER_PASS_STATE> GetRenderPassStateSharedPtr(VkRenderPass renderpass);
-    FRAMEBUFFER_STATE* GetFramebufferState(VkFramebuffer framebuffer);
     COMMAND_POOL_STATE* GetCommandPoolState(VkCommandPool pool);
     SHADER_MODULE_STATE const* GetShaderModuleState(VkShaderModule module);
-    FENCE_STATE* GetFenceState(VkFence fence);
-    EVENT_STATE* GetEventState(VkEvent event);
-    QUERY_POOL_STATE* GetQueryPoolState(VkQueryPool query_pool);
     QUEUE_STATE* GetQueueState(VkQueue queue);
-    SEMAPHORE_STATE* GetSemaphoreState(VkSemaphore semaphore);
     PHYSICAL_DEVICE_STATE* GetPhysicalDeviceState(VkPhysicalDevice phys);
     PHYSICAL_DEVICE_STATE* GetPhysicalDeviceState();
 
@@ -308,14 +245,10 @@ class CoreChecks : public ValidationObject {
     void DeletePools();
     bool ValidImageBufferQueue(CMD_BUFFER_STATE* cb_node, const VK_OBJECT* object, VkQueue queue, uint32_t count,
                                const uint32_t* indices);
-    bool ValidateFenceForSubmit(FENCE_STATE* pFence);
     void AddMemObjInfo(void* object, const VkDeviceMemory mem, const VkMemoryAllocateInfo* pAllocateInfo);
     bool ValidateStatus(CMD_BUFFER_STATE* pNode, CBStatusFlags status_mask, VkFlags msg_flags, const char* fail_msg,
                         const char* msg_code);
     bool ValidateDrawStateFlags(CMD_BUFFER_STATE* pCB, const PIPELINE_STATE* pPipe, bool indexed, const char* msg_code);
-    bool LogInvalidAttachmentMessage(const char* type1_string, const RENDER_PASS_STATE* rp1_state, const char* type2_string,
-                                     const RENDER_PASS_STATE* rp2_state, uint32_t primary_attach, uint32_t secondary_attach,
-                                     const char* msg, const char* caller, const char* error_code);
     bool ValidateStageMaskGsTsEnables(VkPipelineStageFlags stageMask, const char* caller, const char* geo_error_id,
                                       const char* tess_error_id, const char* mesh_error_id, const char* task_error_id);
     bool ValidateMapMemRange(VkDeviceMemory mem, VkDeviceSize offset, VkDeviceSize size);
@@ -340,7 +273,6 @@ class CoreChecks : public ValidationObject {
 
     bool ValidatePipelineVertexDivisors(std::vector<std::unique_ptr<PIPELINE_STATE>> const& pipe_state_vec, const uint32_t count,
                                         const VkGraphicsPipelineCreateInfo* pipe_cis);
-    void AddFramebufferBinding(CMD_BUFFER_STATE* cb_state, FRAMEBUFFER_STATE* fb_state);
     bool ValidateImageBarrierImage(const char* funcName, CMD_BUFFER_STATE const* cb_state, VkFramebuffer framebuffer,
                                    uint32_t active_subpass, const safe_VkSubpassDescription2KHR& sub_desc, uint64_t rp_handle,
                                    uint32_t img_index, const VkImageMemoryBarrier& img_barrier);
@@ -348,7 +280,6 @@ class CoreChecks : public ValidationObject {
                                        const VkSubpassContents contents);
     bool ValidateCmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPassCreateVersion rp_version,
                                     const VkRenderPassBeginInfo* pRenderPassBegin);
-    bool ValidateDependencies(FRAMEBUFFER_STATE const* framebuffer, RENDER_PASS_STATE const* renderPass);
     bool ValidateBarriers(const char* funcName, CMD_BUFFER_STATE* cb_state, VkPipelineStageFlags src_stage_mask,
                           VkPipelineStageFlags dst_stage_mask, uint32_t memBarrierCount, const VkMemoryBarrier* pMemBarriers,
                           uint32_t bufferBarrierCount, const VkBufferMemoryBarrier* pBufferMemBarriers,
@@ -367,12 +298,6 @@ class CoreChecks : public ValidationObject {
     void CopyNoncoherentMemoryFromDriver(uint32_t mem_range_count, const VkMappedMemoryRange* mem_ranges);
     bool ValidateMappedMemoryRangeDeviceLimits(const char* func_name, uint32_t mem_range_count,
                                                const VkMappedMemoryRange* mem_ranges);
-    BarrierOperationsType ComputeBarrierOperationsType(CMD_BUFFER_STATE* cb_state, uint32_t buffer_barrier_count,
-                                                       const VkBufferMemoryBarrier* buffer_barriers, uint32_t image_barrier_count,
-                                                       const VkImageMemoryBarrier* image_barriers);
-    bool ValidateStageMasksAgainstQueueCapabilities(CMD_BUFFER_STATE const* cb_state, VkPipelineStageFlags source_stage_mask,
-                                                    VkPipelineStageFlags dest_stage_mask, BarrierOperationsType barrier_op_type,
-                                                    const char* function, const char* error_code);
     bool SetEventStageMask(VkQueue queue, VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags stageMask);
     bool ValidateRenderPassImageBarriers(const char* funcName, CMD_BUFFER_STATE* cb_state, uint32_t active_subpass,
                                          const safe_VkSubpassDescription2KHR& sub_desc, uint64_t rp_handle,
@@ -446,8 +371,6 @@ class CoreChecks : public ValidationObject {
     // Prototypes for CoreChecks accessor functions
     const VkPhysicalDeviceMemoryProperties* GetPhysicalDeviceMemoryProperties();
 
-    void RetireWorkOnQueue(QUEUE_STATE* pQueue, uint64_t seq);
-
     // Descriptor Set Validation Functions
     void PerformUpdateDescriptorSetsWithTemplateKHR(VkDescriptorSet descriptorSet, const TEMPLATE_STATE* template_state,
                                                     const void* pData);
@@ -506,10 +429,6 @@ class CoreChecks : public ValidationObject {
     bool ValidateIdleBuffer(VkBuffer buffer);
     bool ValidateUsageFlags(VkFlags actual, VkFlags desired, VkBool32 strict, uint64_t obj_handle, VulkanObjectType obj_type,
                             const char* msgCode, char const* func_name, char const* usage_str);
-    bool ValidateImageSubresourceRange(const uint32_t image_mip_count, const uint32_t image_layer_count,
-                                       const VkImageSubresourceRange& subresourceRange, const char* cmd_name,
-                                       const char* param_name, const char* image_layer_count_var_name, const uint64_t image_handle,
-                                       SubresourceRangeErrorCodes errorCodes);
     bool ValidateRenderPassLayoutAgainstFramebufferImageUsage(RenderPassCreateVersion rp_version, VkImageLayout layout,
                                                               VkImage image, VkImageView image_view, VkFramebuffer framebuffer,
                                                               VkRenderPass renderpass, uint32_t attachment_index,
@@ -553,8 +472,6 @@ class CoreChecks : public ValidationObject {
     void PreCallRecordQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence);
     void PostCallRecordQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence,
                                    VkResult result);
-    void PostCallRecordQueueWaitIdle(VkQueue queue, VkResult result);
-    void PostCallRecordDeviceWaitIdle(VkDevice device, VkResult result);
     void PreCallRecordDestroyShaderModule(VkDevice device, VkShaderModule shaderModule, const VkAllocationCallbacks* pAllocator);
     void PreCallRecordDestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks* pAllocator);
     void PreCallRecordDestroyDescriptorSetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout,

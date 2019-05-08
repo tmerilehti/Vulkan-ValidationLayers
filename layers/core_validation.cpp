@@ -49,42 +49,6 @@
 #include "shader_validation.h"
 #include "vk_layer_utils.h"
 
-// These functions are defined *outside* the core_validation namespace as their type
-// is also defined outside that namespace
-size_t PipelineLayoutCompatDef::hash() const {
-    hash_util::HashCombiner hc;
-    // The set number is integral to the CompatDef's distinctiveness
-    hc << set << push_constant_ranges.get();
-    const auto &descriptor_set_layouts = *set_layouts_id.get();
-    for (uint32_t i = 0; i <= set; i++) {
-        hc << descriptor_set_layouts[i].get();
-    }
-    return hc.Value();
-}
-
-bool PipelineLayoutCompatDef::operator==(const PipelineLayoutCompatDef &other) const {
-    if ((set != other.set) || (push_constant_ranges != other.push_constant_ranges)) {
-        return false;
-    }
-
-    if (set_layouts_id == other.set_layouts_id) {
-        // if it's the same set_layouts_id, then *any* subset will match
-        return true;
-    }
-
-    // They aren't exactly the same PipelineLayoutSetLayouts, so we need to check if the required subsets match
-    const auto &descriptor_set_layouts = *set_layouts_id.get();
-    assert(set < descriptor_set_layouts.size());
-    const auto &other_ds_layouts = *other.set_layouts_id.get();
-    assert(set < other_ds_layouts.size());
-    for (uint32_t i = 0; i <= set; i++) {
-        if (descriptor_set_layouts[i] != other_ds_layouts[i]) {
-            return false;
-        }
-    }
-    return true;
-}
-
 using std::max;
 using std::string;
 using std::stringstream;
@@ -162,17 +126,6 @@ SHADER_MODULE_STATE const *CoreChecks::GetShaderModuleState(VkShaderModule modul
     return it->second.get();
 }
 
-bool CoreChecks::LogInvalidAttachmentMessage(const char *type1_string, const RENDER_PASS_STATE *rp1_state, const char *type2_string,
-                                             const RENDER_PASS_STATE *rp2_state, uint32_t primary_attach, uint32_t secondary_attach,
-                                             const char *msg, const char *caller, const char *error_code) {
-    return log_msg(report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT,
-                   HandleToUint64(rp1_state->renderPass), error_code,
-                   "%s: RenderPasses incompatible between %s w/ renderPass %s and %s w/ renderPass %s Attachment %u is not "
-                   "compatible with %u: %s.",
-                   caller, type1_string, report_data->FormatHandle(rp1_state->renderPass).c_str(), type2_string,
-                   report_data->FormatHandle(rp2_state->renderPass).c_str(), primary_attach, secondary_attach, msg);
-}
-
 // Return Set node ptr for specified set or else NULL
 cvdescriptorset::DescriptorSet *CoreChecks::GetSetNode(VkDescriptorSet set) {
     auto set_it = setMap.find(set);
@@ -234,32 +187,20 @@ void CoreChecks::ResetCommandBufferState(const VkCommandBuffer cb) {
         // Reset CB state (note that createInfo is not cleared)
         pCB->commandBuffer = cb;
         memset(&pCB->beginInfo, 0, sizeof(VkCommandBufferBeginInfo));
-        memset(&pCB->inheritanceInfo, 0, sizeof(VkCommandBufferInheritanceInfo));
         pCB->hasDrawCmd = false;
         pCB->state = CB_NEW;
         pCB->submitCount = 0;
-        pCB->image_layout_change_count = 1;  // Start at 1. 0 is insert value for validation cache versions, s.t. new == dirty
         pCB->status = 0;
         pCB->static_status = 0;
-        pCB->viewportMask = 0;
-        pCB->scissorMask = 0;
 
         for (auto &item : pCB->lastBound) {
             item.second.reset();
         }
 
-        memset(&pCB->activeRenderPassBeginInfo, 0, sizeof(pCB->activeRenderPassBeginInfo));
         pCB->activeRenderPass = nullptr;
         pCB->activeSubpassContents = VK_SUBPASS_CONTENTS_INLINE;
         pCB->activeSubpass = 0;
         pCB->broken_bindings.clear();
-        pCB->waitedEvents.clear();
-        pCB->events.clear();
-        pCB->writeEventsBeforeWait.clear();
-        pCB->activeQueries.clear();
-        pCB->startedQueries.clear();
-        pCB->eventToStageMap.clear();
-        pCB->vertex_buffer_used = false;
         pCB->primaryCommandBuffer = VK_NULL_HANDLE;
         // If secondary, invalidate any primary command buffer that may call us.
         if (pCB->createInfo.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) {
@@ -271,12 +212,7 @@ void CoreChecks::ResetCommandBufferState(const VkCommandBuffer cb) {
             pSubCB->linkedCommandBuffers.erase(pCB);
         }
         pCB->linkedCommandBuffers.clear();
-        pCB->updateImages.clear();
-        pCB->updateBuffers.clear();
         pCB->queue_submit_functions.clear();
-        pCB->cmd_execute_commands_functions.clear();
-        pCB->eventUpdates.clear();
-        pCB->queryUpdates.clear();
 
         pCB->object_bindings.clear();
         pCB->activeFramebuffer = VK_NULL_HANDLE;
@@ -398,28 +334,6 @@ void CoreChecks::PreCallRecordDestroyRenderPass(VkDevice device, VkRenderPass re
 void CoreChecks::RecordCreateRenderPassState(RenderPassCreateVersion rp_version, std::shared_ptr<RENDER_PASS_STATE> &render_pass,
                                              VkRenderPass *pRenderPass) {
     render_pass->renderPass = *pRenderPass;
-    auto create_info = render_pass->createInfo.ptr();
-
-    // RecordRenderPassDAG(RENDER_PASS_VERSION_1, create_info, render_pass.get());
-
-    for (uint32_t i = 0; i < create_info->subpassCount; ++i) {
-        const VkSubpassDescription2KHR &subpass = create_info->pSubpasses[i];
-        for (uint32_t j = 0; j < subpass.colorAttachmentCount; ++j) {
-            // MarkAttachmentFirstUse(render_pass.get(), subpass.pColorAttachments[j].attachment, false);
-
-            // resolve attachments are considered to be written
-            if (subpass.pResolveAttachments) {
-                // MarkAttachmentFirstUse(render_pass.get(), subpass.pResolveAttachments[j].attachment, false);
-            }
-        }
-        if (subpass.pDepthStencilAttachment) {
-            // MarkAttachmentFirstUse(render_pass.get(), subpass.pDepthStencilAttachment->attachment, false);
-        }
-        for (uint32_t j = 0; j < subpass.inputAttachmentCount; ++j) {
-            // MarkAttachmentFirstUse(render_pass.get(), subpass.pInputAttachments[j].attachment, true);
-        }
-    }
-
     // Even though render_pass is an rvalue-ref parameter, still must move s.t. move assignment is invoked.
     renderPassMap[*pRenderPass] = std::move(render_pass);
 }
@@ -440,32 +354,8 @@ void CoreChecks::PostCallRecordCreateRenderPass2KHR(VkDevice device, const VkRen
     RecordCreateRenderPassState(RENDER_PASS_VERSION_2, render_pass_state, pRenderPass);
 }
 
-void CoreChecks::RetireWorkOnQueue(QUEUE_STATE *pQueue, uint64_t seq) {
-    std::unordered_map<VkQueue, uint64_t> otherQueueSeqs;
-
-    // Roll this queue forward, one submission at a time.
-    while (pQueue->seq < seq) {
-        auto &submission = pQueue->submissions.front();
-
-        pQueue->submissions.pop_front();
-        pQueue->seq++;
-    }
-
-    // Roll other queues forward to the highest seq we saw a wait for
-    for (auto qs : otherQueueSeqs) {
-        RetireWorkOnQueue(GetQueueState(qs.first), qs.second);
-    }
-}
-
 void CoreChecks::PostCallRecordQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence,
                                            VkResult result) {
-    uint64_t early_retire_seq = 0;
-    auto pQueue = GetQueueState(queue);
-
-    if (early_retire_seq) {
-        RetireWorkOnQueue(pQueue, early_retire_seq);
-    }
-
     if (enabled.gpu_validation) {
         GpuPostCallQueueSubmit(queue, submitCount, pSubmits, fence);
     }
@@ -494,19 +384,6 @@ void CoreChecks::PostCallRecordGetDeviceQueue(VkDevice device, uint32_t queueFam
 
 void CoreChecks::PostCallRecordGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2 *pQueueInfo, VkQueue *pQueue) {
     RecordGetDeviceQueueState(pQueueInfo->queueFamilyIndex, *pQueue);
-}
-
-void CoreChecks::PostCallRecordQueueWaitIdle(VkQueue queue, VkResult result) {
-    if (VK_SUCCESS != result) return;
-    QUEUE_STATE *queue_state = GetQueueState(queue);
-    RetireWorkOnQueue(queue_state, queue_state->seq + queue_state->submissions.size());
-}
-
-void CoreChecks::PostCallRecordDeviceWaitIdle(VkDevice device, VkResult result) {
-    if (VK_SUCCESS != result) return;
-    for (auto &queue : queueMap) {
-        RetireWorkOnQueue(&queue.second, queue.second.seq + queue.second.submissions.size());
-    }
 }
 
 void CoreChecks::PreCallRecordDestroyShaderModule(VkDevice device, VkShaderModule shaderModule,
@@ -592,8 +469,6 @@ void CoreChecks::PostCallRecordEnumeratePhysicalDevices(VkInstance instance, uin
         for (uint32_t i = 0; i < *pPhysicalDeviceCount; i++) {
             auto &phys_device_state = physical_device_map[pPhysicalDevices[i]];
             phys_device_state.phys_device = pPhysicalDevices[i];
-            // Init actual features for each physical device
-            DispatchGetPhysicalDeviceFeatures(pPhysicalDevices[i], &phys_device_state.features2.features);
         }
     }
 }
@@ -642,9 +517,6 @@ void CoreChecks::UpdateDrawState(CMD_BUFFER_STATE *cb_state, const VkPipelineBin
                 // For given active slots record updated images & buffers
             }
         }
-    }
-    if (!pPipe->vertex_binding_descriptions_.empty()) {
-        cb_state->vertex_buffer_used = true;
     }
 }
 RENDER_PASS_STATE *CoreChecks::GetRenderPassState(VkRenderPass renderpass) {
@@ -880,12 +752,9 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
 
     auto &bound_sets = last_bound.boundDescriptorSets;
     auto &dynamic_offsets = last_bound.dynamicOffsets;
-    auto &bound_compat_ids = last_bound.compat_id_for_set;
-    auto &pipe_compat_ids = pipeline_layout->compat_for_set;
 
     const uint32_t current_size = static_cast<uint32_t>(bound_sets.size());
     assert(current_size == dynamic_offsets.size());
-    assert(current_size == bound_compat_ids.size());
 
     // We need this three times in this function, but nowhere else
     auto push_descriptor_cleanup = [&last_bound](const cvdescriptorset::DescriptorSet *ds) -> bool {
@@ -899,15 +768,8 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
 
     // Clean up the "disturbed" before and after the range to be set
     if (required_size < current_size) {
-        if (bound_compat_ids[last_binding_index] != pipe_compat_ids[last_binding_index]) {
-            // We're disturbing those after last, we'll shrink below, but first need to check for and cleanup the push_descriptor
-            for (auto set_idx = required_size; set_idx < current_size; ++set_idx) {
-                if (push_descriptor_cleanup(bound_sets[set_idx])) break;
-            }
-        } else {
             // We're not disturbing past last, so leave the upper binding data alone.
             required_size = current_size;
-        }
     }
 
     // We resize if we need more set entries or if those past "last" are disturbed
@@ -915,17 +777,6 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
         // TODO: put these size tied things in a struct (touches many lines)
         bound_sets.resize(required_size);
         dynamic_offsets.resize(required_size);
-        bound_compat_ids.resize(required_size);
-    }
-
-    // For any previously bound sets, need to set them to "invalid" if they were disturbed by this update
-    for (uint32_t set_idx = 0; set_idx < first_set; ++set_idx) {
-        if (bound_compat_ids[set_idx] != pipe_compat_ids[set_idx]) {
-            push_descriptor_cleanup(bound_sets[set_idx]);
-            bound_sets[set_idx] = nullptr;
-            dynamic_offsets[set_idx].clear();
-            bound_compat_ids[set_idx] = pipe_compat_ids[set_idx];
-        }
     }
 
     // Now update the bound sets with the input sets
@@ -998,7 +849,7 @@ void CoreChecks::RecordCmdPushDescriptorSetState(CMD_BUFFER_STATE *cb_state, VkP
     auto &last_bound = cb_state->lastBound[pipelineBindPoint];
     auto &push_descriptor_set = last_bound.push_descriptor_set;
     // If we are disturbing the current push_desriptor_set clear it
-    if (!push_descriptor_set || !CompatForSet(set, last_bound.compat_id_for_set, pipeline_layout->compat_for_set)) {
+    if (!push_descriptor_set) {
         push_descriptor_set.reset(new cvdescriptorset::DescriptorSet(0, 0, dsl, 0, this));
     }
 
