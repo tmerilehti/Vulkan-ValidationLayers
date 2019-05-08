@@ -1162,7 +1162,7 @@ class PIPELINE_STATE : public BASE_NODE {
             const auto pCBCI = graphicsPipelineCI.pColorBlendState;
             if (pCBCI->attachmentCount) {
                 this->attachments = std::vector<VkPipelineColorBlendAttachmentState>(pCBCI->pAttachments,
-                                                                                     pCBCI->pAttachments + pCBCI->attachmentCount);
+                    pCBCI->pAttachments + pCBCI->attachmentCount);
             }
         }
         if (graphicsPipelineCI.pInputAssemblyState) {

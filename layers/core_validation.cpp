@@ -351,12 +351,68 @@ void CoreChecks::PreCallRecordDestroyDevice(VkDevice device, const VkAllocationC
     }
     pipelineMap.clear();
     commandBufferMap.clear();
+    renderPassMap.clear();
     // This will also delete all sets in the pool & remove them from setMap
     // All sets should be removed
     assert(setMap.empty());
     queueMap.clear();
     layer_debug_utils_destroy_device(device);
 }
+
+void CoreChecks::PreCallRecordDestroyRenderPass(VkDevice device, VkRenderPass renderPass, const VkAllocationCallbacks *pAllocator) {
+    if (!renderPass) return;
+    RENDER_PASS_STATE *rp_state = GetRenderPassState(renderPass);
+    VK_OBJECT obj_struct = { HandleToUint64(renderPass), kVulkanObjectTypeRenderPass };
+    InvalidateCommandBuffers(rp_state->cb_bindings, obj_struct);
+    renderPassMap.erase(renderPass);
+}
+
+void CoreChecks::RecordCreateRenderPassState(RenderPassCreateVersion rp_version, std::shared_ptr<RENDER_PASS_STATE> &render_pass,
+    VkRenderPass *pRenderPass) {
+    render_pass->renderPass = *pRenderPass;
+    auto create_info = render_pass->createInfo.ptr();
+
+    //RecordRenderPassDAG(RENDER_PASS_VERSION_1, create_info, render_pass.get());
+
+    for (uint32_t i = 0; i < create_info->subpassCount; ++i) {
+        const VkSubpassDescription2KHR &subpass = create_info->pSubpasses[i];
+        for (uint32_t j = 0; j < subpass.colorAttachmentCount; ++j) {
+            //MarkAttachmentFirstUse(render_pass.get(), subpass.pColorAttachments[j].attachment, false);
+
+            // resolve attachments are considered to be written
+            if (subpass.pResolveAttachments) {
+                //MarkAttachmentFirstUse(render_pass.get(), subpass.pResolveAttachments[j].attachment, false);
+            }
+        }
+        if (subpass.pDepthStencilAttachment) {
+            //MarkAttachmentFirstUse(render_pass.get(), subpass.pDepthStencilAttachment->attachment, false);
+        }
+        for (uint32_t j = 0; j < subpass.inputAttachmentCount; ++j) {
+           // MarkAttachmentFirstUse(render_pass.get(), subpass.pInputAttachments[j].attachment, true);
+        }
+    }
+
+    // Even though render_pass is an rvalue-ref parameter, still must move s.t. move assignment is invoked.
+    renderPassMap[*pRenderPass] = std::move(render_pass);
+}
+
+void CoreChecks::PostCallRecordCreateRenderPass(VkDevice device, const VkRenderPassCreateInfo *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass,
+    VkResult result) {
+    if (VK_SUCCESS != result) return;
+    auto render_pass_state = std::make_shared<RENDER_PASS_STATE>(pCreateInfo);
+    RecordCreateRenderPassState(RENDER_PASS_VERSION_1, render_pass_state, pRenderPass);
+}
+
+void CoreChecks::PostCallRecordCreateRenderPass2KHR(VkDevice device, const VkRenderPassCreateInfo2KHR *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass,
+    VkResult result) {
+    if (VK_SUCCESS != result) return;
+    auto render_pass_state = std::make_shared<RENDER_PASS_STATE>(pCreateInfo);
+    RecordCreateRenderPassState(RENDER_PASS_VERSION_2, render_pass_state, pRenderPass);
+}
+
+
 
 void CoreChecks::RetireWorkOnQueue(QUEUE_STATE *pQueue, uint64_t seq) {
     std::unordered_map<VkQueue, uint64_t> otherQueueSeqs;
@@ -491,8 +547,8 @@ void CoreChecks::FreeCommandBufferStates(COMMAND_POOL_STATE *pool_state, const u
             ResetCommandBufferState(cb_state->commandBuffer);
             // Remove CBState from CB map
             commandBufferMap.erase(cb_state->commandBuffer);
-            // Remove the cb_state's references from COMMAND_POOL_STATEs
-            pool_state->commandBuffers.erase(command_buffers[i]);
+            ////////// Remove the cb_state's references from COMMAND_POOL_STATEs
+            ////////pool_state->commandBuffers.erase(command_buffers[i]);
             // Remove the cb debug labels
             EraseCmdDebugUtilsLabel(report_data, cb_state->commandBuffer);
             // Remove CBState from CB map
@@ -529,8 +585,8 @@ void CoreChecks::PostCallRecordEnumeratePhysicalDevices(VkInstance instance, uin
 
 void CoreChecks::PreCallRecordFreeCommandBuffers(VkDevice device, VkCommandPool commandPool, uint32_t commandBufferCount,
                                                  const VkCommandBuffer *pCommandBuffers) {
-    auto pPool = GetCommandPoolState(commandPool);
-    FreeCommandBufferStates(pPool, commandBufferCount, pCommandBuffers);
+    //////auto pPool = GetCommandPoolState(commandPool);
+    FreeCommandBufferStates(nullptr, commandBufferCount, pCommandBuffers);
 }
 
 // For given cb_nodes, invalidate them and track object causing invalidation
@@ -552,6 +608,63 @@ void CoreChecks::InvalidateCommandBuffers(std::unordered_set<CMD_BUFFER_STATE *>
             InvalidateCommandBuffers(cb_node->linkedCommandBuffers, obj);
         }
     }
+}
+
+void CoreChecks::UpdateDrawState(CMD_BUFFER_STATE *cb_state, const VkPipelineBindPoint bind_point) {
+    auto const &state = cb_state->lastBound[bind_point];
+    PIPELINE_STATE *pPipe = state.pipeline_state;
+    if (VK_NULL_HANDLE != state.pipeline_layout) {
+        for (const auto &set_binding_pair : pPipe->active_slots) {
+            uint32_t setIndex = set_binding_pair.first;
+            // Pull the set node
+            cvdescriptorset::DescriptorSet *descriptor_set = state.boundDescriptorSets[setIndex];
+            if (!descriptor_set->IsPushDescriptor()) {
+                // For the "bindless" style resource usage with many descriptors, need to optimize command <-> descriptor binding
+                const cvdescriptorset::PrefilterBindRequestMap reduced_map(*descriptor_set, set_binding_pair.second, cb_state);
+                const auto &binding_req_map = reduced_map.Map();
+
+                // Bind this set and its active descriptor resources to the command buffer
+                descriptor_set->UpdateDrawState(this, cb_state, binding_req_map);
+                // For given active slots record updated images & buffers
+                ////// LUGMAL descriptor_set->GetStorageUpdates(binding_req_map, &cb_state->updateBuffers, &cb_state->updateImages);
+            }
+        }
+    }
+    if (!pPipe->vertex_binding_descriptions_.empty()) {
+        cb_state->vertex_buffer_used = true;
+    }
+}
+RENDER_PASS_STATE *CoreChecks::GetRenderPassState(VkRenderPass renderpass) {
+    auto it = renderPassMap.find(renderpass);
+    if (it == renderPassMap.end()) {
+        return nullptr;
+    }
+    return it->second.get();
+}
+
+std::shared_ptr<RENDER_PASS_STATE> CoreChecks::GetRenderPassStateSharedPtr(VkRenderPass renderpass) {
+    auto it = renderPassMap.find(renderpass);
+    if (it == renderPassMap.end()) {
+        return nullptr;
+    }
+    return it->second;
+}
+
+bool CoreChecks::PreCallValidateCreateGraphicsPipelines(VkDevice device, VkPipelineCache pipelineCache, uint32_t count,
+    const VkGraphicsPipelineCreateInfo *pCreateInfos,
+    const VkAllocationCallbacks *pAllocator, VkPipeline *pPipelines,
+    void *cgpl_state_data) {
+    bool skip = false;
+    create_graphics_pipeline_api_state *cgpl_state = reinterpret_cast<create_graphics_pipeline_api_state *>(cgpl_state_data);
+    cgpl_state->pipe_state.reserve(count);
+    for (uint32_t i = 0; i < count; i++) {
+        cgpl_state->pipe_state.push_back(std::unique_ptr<PIPELINE_STATE>(new PIPELINE_STATE));
+        (cgpl_state->pipe_state)[i]->initGraphicsPipeline(&pCreateInfos[i],
+            GetRenderPassStateSharedPtr(pCreateInfos[i].renderPass));
+        (cgpl_state->pipe_state)[i]->pipeline_layout = *GetPipelineLayout(pCreateInfos[i].layout);
+    }
+
+    return skip;
 }
 
 // GPU validation may replace pCreateInfos for the down-chain call
@@ -657,6 +770,27 @@ void CoreChecks::PostCallRecordCreatePipelineLayout(VkDevice device, const VkPip
         GpuPostCallCreatePipelineLayout(result);
     }
     if (VK_SUCCESS != result) return;
+    std::unique_ptr<PIPELINE_LAYOUT_STATE> pipeline_layout_state(new PIPELINE_LAYOUT_STATE{});
+    pipeline_layout_state->layout = *pPipelineLayout;
+    pipeline_layout_state->set_layouts.resize(pCreateInfo->setLayoutCount);
+    ////////PipelineLayoutSetLayoutsDef set_layouts(pCreateInfo->setLayoutCount);
+    ////////for (uint32_t i = 0; i < pCreateInfo->setLayoutCount; ++i) {
+    ////////    pipeline_layout_state->set_layouts[i] = GetDescriptorSetLayout(this, pCreateInfo->pSetLayouts[i]);
+    ////////    set_layouts[i] = pipeline_layout_state->set_layouts[i]->GetLayoutId();
+    ////////}
+
+    // Get canonical form IDs for the "compatible for set" contents
+    ////////pipeline_layout_state->push_constant_ranges = GetCanonicalId(pCreateInfo);
+    ////////auto set_layouts_id = pipeline_layout_set_layouts_dict.look_up(set_layouts);
+    ////////pipeline_layout_state->compat_for_set.reserve(pCreateInfo->setLayoutCount);
+
+    ////////// Create table of "compatible for set N" cannonical forms for trivial accept validation
+    ////////for (uint32_t i = 0; i < pCreateInfo->setLayoutCount; ++i) {
+    ////////    pipeline_layout_state->compat_for_set.emplace_back(
+    ////////        GetCanonicalId(i, pipeline_layout_state->push_constant_ranges, set_layouts_id));
+    ////////}
+    pipelineLayoutMap[*pPipelineLayout] = std::move(pipeline_layout_state);
+
 }
 
 
@@ -694,11 +828,11 @@ void CoreChecks::PreCallRecordUpdateDescriptorSets(VkDevice device, uint32_t des
 void CoreChecks::PostCallRecordAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo *pCreateInfo,
                                                       VkCommandBuffer *pCommandBuffer, VkResult result) {
     if (VK_SUCCESS != result) return;
-    auto pPool = GetCommandPoolState(pCreateInfo->commandPool);
-    if (pPool) {
+    ////////auto pPool = GetCommandPoolState(pCreateInfo->commandPool);
+    ////////if (pPool) {
         for (uint32_t i = 0; i < pCreateInfo->commandBufferCount; i++) {
             // Add command buffer to its commandPool map
-            pPool->commandBuffers.insert(pCommandBuffer[i]);
+            ////////pPool->commandBuffers.insert(pCommandBuffer[i]);
             std::unique_ptr<CMD_BUFFER_STATE> pCB(new CMD_BUFFER_STATE{});
             pCB->createInfo = *pCreateInfo;
             pCB->device = device;
@@ -706,7 +840,7 @@ void CoreChecks::PostCallRecordAllocateCommandBuffers(VkDevice device, const VkC
             commandBufferMap[pCommandBuffer[i]] = std::move(pCB);
             ResetCommandBufferState(pCommandBuffer[i]);
         }
-    }
+    ////////}
 }
 
 void CoreChecks::PostCallRecordResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags flags, VkResult result) {
@@ -752,7 +886,7 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
 
     uint32_t required_size = first_set + set_count;
     const uint32_t last_binding_index = required_size - 1;
-    assert(last_binding_index < pipeline_layout->compat_for_set.size());
+    ////assert(last_binding_index < pipeline_layout->compat_for_set.size());
 
     // Some useful shorthand
     auto &last_bound = cb_state->lastBound[pipeline_bind_point];
@@ -819,7 +953,7 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
             push_descriptor_cleanup(bound_sets[set_idx]);
         }
         bound_sets[set_idx] = descriptor_set;
-        bound_compat_ids[set_idx] = pipe_compat_ids[set_idx];  // compat ids are canonical *per* set index
+        ////bound_compat_ids[set_idx] = pipe_compat_ids[set_idx];  // compat ids are canonical *per* set index
 
         if (descriptor_set) {
             auto set_dynamic_descriptor_count = descriptor_set->GetDynamicDescriptorCount();

@@ -935,12 +935,12 @@ void CoreChecks::UpdateAllocateDescriptorSetsData(const VkDescriptorSetAllocateI
 void CoreChecks::PerformAllocateDescriptorSets(const VkDescriptorSetAllocateInfo *p_alloc_info,
                                                const VkDescriptorSet *descriptor_sets,
                                                const cvdescriptorset::AllocateDescriptorSetsData *ds_data) {
-    auto pool_state = descriptorPoolMap[p_alloc_info->descriptorPool].get();
-    // Account for sets and individual descriptors allocated from pool
-    pool_state->availableSets -= p_alloc_info->descriptorSetCount;
-    for (auto it = ds_data->required_descriptors_by_type.begin(); it != ds_data->required_descriptors_by_type.end(); ++it) {
-        pool_state->availableDescriptorTypeCount[it->first] -= ds_data->required_descriptors_by_type.at(it->first);
-    }
+    ////////auto pool_state = descriptorPoolMap[p_alloc_info->descriptorPool].get();
+    ////////// Account for sets and individual descriptors allocated from pool
+    ////////pool_state->availableSets -= p_alloc_info->descriptorSetCount;
+    ////////for (auto it = ds_data->required_descriptors_by_type.begin(); it != ds_data->required_descriptors_by_type.end(); ++it) {
+    ////////    pool_state->availableDescriptorTypeCount[it->first] -= ds_data->required_descriptors_by_type.at(it->first);
+    ////////}
 
     const auto *variable_count_info = lvl_find_in_chain<VkDescriptorSetVariableDescriptorCountAllocateInfoEXT>(p_alloc_info->pNext);
     bool variable_count_valid = variable_count_info && variable_count_info->descriptorSetCount == p_alloc_info->descriptorSetCount;
@@ -951,7 +951,7 @@ void CoreChecks::PerformAllocateDescriptorSets(const VkDescriptorSetAllocateInfo
 
         std::unique_ptr<cvdescriptorset::DescriptorSet> new_ds(new cvdescriptorset::DescriptorSet(
             descriptor_sets[i], p_alloc_info->descriptorPool, ds_data->layout_nodes[i], variable_count, this));
-        pool_state->sets.insert(new_ds.get());
+        ////////pool_state->sets.insert(new_ds.get());
         new_ds->in_use.store(0);
         setMap[descriptor_sets[i]] = std::move(new_ds);
     }

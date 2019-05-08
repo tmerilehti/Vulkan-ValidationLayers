@@ -1260,7 +1260,8 @@ void CoreChecks::GpuAllocateValidationResources(const VkCommandBuffer cmd_buffer
     if (iter != cb_node->lastBound.end()) {
         auto pipeline_state = iter->second.pipeline_state;
         if (pipeline_state && (pipeline_state->pipeline_layout.set_layouts.size() <= gpu_validation_state->desc_set_bind_index)) {
-            DispatchCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_state->pipeline_layout.layout,
+            
+            (cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_state->pipeline_layout.layout,
                                           gpu_validation_state->desc_set_bind_index, 1, desc_sets.data(), 0, nullptr);
         }
         // Record buffer and memory info in CB state tracking
