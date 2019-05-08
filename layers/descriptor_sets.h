@@ -569,8 +569,6 @@ class DescriptorSet : public BASE_NODE {
     bool VerifyWriteUpdateContents(const VkWriteDescriptorSet *, const uint32_t, const char *, std::string *, std::string *) const;
     bool VerifyCopyUpdateContents(const VkCopyDescriptorSet *, const DescriptorSet *, VkDescriptorType, uint32_t, const char *,
                                   std::string *, std::string *) const;
-    bool ValidateBufferUsage(BUFFER_STATE const *, VkDescriptorType, std::string *, std::string *) const;
-    bool ValidateBufferUpdate(VkDescriptorBufferInfo const *, VkDescriptorType, const char *, std::string *, std::string *) const;
     // Private helper to set all bound cmd buffers to INVALID state
     void InvalidateBoundCmdBuffers();
     bool some_update_;  // has any part of the set ever been updated?

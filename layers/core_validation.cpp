@@ -15,24 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author: Cody Northrop <cnorthrop@google.com>
- * Author: Michael Lentine <mlentine@google.com>
- * Author: Tobin Ehlis <tobine@google.com>
- * Author: Chia-I Wu <olv@google.com>
- * Author: Chris Forbes <chrisf@ijw.co.nz>
  * Author: Mark Lobodzinski <mark@lunarg.com>
- * Author: Ian Elliott <ianelliott@google.com>
- * Author: Dave Houlton <daveh@lunarg.com>
- * Author: Dustin Graves <dustin@lunarg.com>
- * Author: Jeremy Hayes <jeremy@lunarg.com>
- * Author: Jon Ashburn <jon@lunarg.com>
  * Author: Karl Schultz <karl@lunarg.com>
- * Author: Mark Young <marky@lunarg.com>
- * Author: Mike Schuchardt <mikes@lunarg.com>
- * Author: Mike Weiblen <mikew@lunarg.com>
  * Author: Tony Barbour <tony@LunarG.com>
- * Author: John Zulauf <jzulauf@lunarg.com>
- * Author: Shannon McPherson <shannon@lunarg.com>
  */
 
 // Allow use of STL min and max functions in Windows
@@ -61,7 +46,6 @@
 #include "chassis.h"
 #include "convert_to_renderpass2.h"
 #include "core_validation.h"
-#include "buffer_validation.h"
 #include "shader_validation.h"
 #include "vk_layer_utils.h"
 
@@ -109,8 +93,6 @@ using std::unordered_map;
 using std::unordered_set;
 using std::vector;
 
-
-
 QUEUE_STATE *CoreChecks::GetQueueState(VkQueue queue) {
     auto it = queueMap.find(queue);
     if (it == queueMap.end()) {
@@ -146,9 +128,6 @@ std::string FormatDebugLabel(const char *prefix, const LoggingLabel &label) {
     return out;
 }
 
-
-
-
 // Retrieve pipeline node ptr for given pipeline object
 PIPELINE_STATE *CoreChecks::GetPipelineState(VkPipeline pipeline) {
     auto it = pipelineMap.find(pipeline);
@@ -165,7 +144,6 @@ PIPELINE_LAYOUT_STATE const *CoreChecks::GetPipelineLayout(VkPipelineLayout pipe
     }
     return it->second.get();
 }
-
 
 std::shared_ptr<cvdescriptorset::DescriptorSetLayout const> const GetDescriptorSetLayout(CoreChecks const *dev_data,
                                                                                          VkDescriptorSetLayout dsLayout) {
@@ -184,7 +162,6 @@ SHADER_MODULE_STATE const *CoreChecks::GetShaderModuleState(VkShaderModule modul
     return it->second.get();
 }
 
-
 bool CoreChecks::LogInvalidAttachmentMessage(const char *type1_string, const RENDER_PASS_STATE *rp1_state, const char *type2_string,
                                              const RENDER_PASS_STATE *rp2_state, uint32_t primary_attach, uint32_t secondary_attach,
                                              const char *msg, const char *caller, const char *error_code) {
@@ -196,8 +173,6 @@ bool CoreChecks::LogInvalidAttachmentMessage(const char *type1_string, const REN
                    report_data->FormatHandle(rp2_state->renderPass).c_str(), primary_attach, secondary_attach, msg);
 }
 
-
-
 // Return Set node ptr for specified set or else NULL
 cvdescriptorset::DescriptorSet *CoreChecks::GetSetNode(VkDescriptorSet set) {
     auto set_it = setMap.find(set);
@@ -206,7 +181,6 @@ cvdescriptorset::DescriptorSet *CoreChecks::GetSetNode(VkDescriptorSet set) {
     }
     return set_it->second.get();
 }
-
 
 // Block of code at start here specifically for managing/tracking DSs
 
@@ -243,8 +217,6 @@ CMD_BUFFER_STATE *CoreChecks::GetCBState(const VkCommandBuffer cb) {
     }
     return it->second.get();
 }
-
-
 
 // Tie the VK_OBJECT to the cmd buffer which includes:
 //  Add object_binding to cmd buffer
@@ -284,19 +256,14 @@ void CoreChecks::ResetCommandBufferState(const VkCommandBuffer cb) {
         pCB->waitedEvents.clear();
         pCB->events.clear();
         pCB->writeEventsBeforeWait.clear();
-        pCB->waitedEventsBeforeQueryReset.clear();
-        pCB->queryToStateMap.clear();
         pCB->activeQueries.clear();
         pCB->startedQueries.clear();
-        pCB->image_layout_map.clear();
         pCB->eventToStageMap.clear();
-        pCB->draw_data.clear();
-        pCB->current_draw_data.vertex_buffer_bindings.clear();
         pCB->vertex_buffer_used = false;
         pCB->primaryCommandBuffer = VK_NULL_HANDLE;
         // If secondary, invalidate any primary command buffer that may call us.
         if (pCB->createInfo.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) {
-            InvalidateCommandBuffers(pCB->linkedCommandBuffers, { HandleToUint64(cb), kVulkanObjectTypeCommandBuffer });
+            InvalidateCommandBuffers(pCB->linkedCommandBuffers, {HandleToUint64(cb), kVulkanObjectTypeCommandBuffer});
         }
 
         // Remove reverse command buffer links.
@@ -306,28 +273,13 @@ void CoreChecks::ResetCommandBufferState(const VkCommandBuffer cb) {
         pCB->linkedCommandBuffers.clear();
         pCB->updateImages.clear();
         pCB->updateBuffers.clear();
-        ////////ClearCmdBufAndMemReferences(pCB);
         pCB->queue_submit_functions.clear();
         pCB->cmd_execute_commands_functions.clear();
         pCB->eventUpdates.clear();
         pCB->queryUpdates.clear();
 
-        ////////// Remove object bindings
-        ////////for (auto obj : pCB->object_bindings) {
-        ////////    RemoveCommandBufferBinding(&obj, pCB);
-        ////////}
         pCB->object_bindings.clear();
-        ////////// Remove this cmdBuffer's reference from each FrameBuffer's CB ref list
-        ////////for (auto framebuffer : pCB->framebuffers) {
-        ////////    auto fb_state = GetFramebufferState(framebuffer);
-        ////////    if (fb_state) fb_state->cb_bindings.erase(pCB);
-        ////////}
-        ////////pCB->framebuffers.clear();
         pCB->activeFramebuffer = VK_NULL_HANDLE;
-        memset(&pCB->index_buffer_binding, 0, sizeof(pCB->index_buffer_binding));
-
-        pCB->qfo_transfer_image_barriers.Reset();
-        pCB->qfo_transfer_buffer_barriers.Reset();
 
         // Clean up the label data
         ResetCmdDebugUtilsLabel(report_data, pCB->commandBuffer);
@@ -408,7 +360,6 @@ void CoreChecks::PostCallRecordCreateDevice(VkPhysicalDevice gpu, const VkDevice
         phys_dev_props->max_push_descriptors = push_descriptor_prop.maxPushDescriptors;
     }
 
-
     if (enabled.gpu_validation) {
         core_checks->GpuPostCallRecordCreateDevice(&enabled);
     }
@@ -439,33 +390,33 @@ void CoreChecks::PreCallRecordDestroyDevice(VkDevice device, const VkAllocationC
 void CoreChecks::PreCallRecordDestroyRenderPass(VkDevice device, VkRenderPass renderPass, const VkAllocationCallbacks *pAllocator) {
     if (!renderPass) return;
     RENDER_PASS_STATE *rp_state = GetRenderPassState(renderPass);
-    VK_OBJECT obj_struct = { HandleToUint64(renderPass), kVulkanObjectTypeRenderPass };
+    VK_OBJECT obj_struct = {HandleToUint64(renderPass), kVulkanObjectTypeRenderPass};
     InvalidateCommandBuffers(rp_state->cb_bindings, obj_struct);
     renderPassMap.erase(renderPass);
 }
 
 void CoreChecks::RecordCreateRenderPassState(RenderPassCreateVersion rp_version, std::shared_ptr<RENDER_PASS_STATE> &render_pass,
-    VkRenderPass *pRenderPass) {
+                                             VkRenderPass *pRenderPass) {
     render_pass->renderPass = *pRenderPass;
     auto create_info = render_pass->createInfo.ptr();
 
-    //RecordRenderPassDAG(RENDER_PASS_VERSION_1, create_info, render_pass.get());
+    // RecordRenderPassDAG(RENDER_PASS_VERSION_1, create_info, render_pass.get());
 
     for (uint32_t i = 0; i < create_info->subpassCount; ++i) {
         const VkSubpassDescription2KHR &subpass = create_info->pSubpasses[i];
         for (uint32_t j = 0; j < subpass.colorAttachmentCount; ++j) {
-            //MarkAttachmentFirstUse(render_pass.get(), subpass.pColorAttachments[j].attachment, false);
+            // MarkAttachmentFirstUse(render_pass.get(), subpass.pColorAttachments[j].attachment, false);
 
             // resolve attachments are considered to be written
             if (subpass.pResolveAttachments) {
-                //MarkAttachmentFirstUse(render_pass.get(), subpass.pResolveAttachments[j].attachment, false);
+                // MarkAttachmentFirstUse(render_pass.get(), subpass.pResolveAttachments[j].attachment, false);
             }
         }
         if (subpass.pDepthStencilAttachment) {
-            //MarkAttachmentFirstUse(render_pass.get(), subpass.pDepthStencilAttachment->attachment, false);
+            // MarkAttachmentFirstUse(render_pass.get(), subpass.pDepthStencilAttachment->attachment, false);
         }
         for (uint32_t j = 0; j < subpass.inputAttachmentCount; ++j) {
-           // MarkAttachmentFirstUse(render_pass.get(), subpass.pInputAttachments[j].attachment, true);
+            // MarkAttachmentFirstUse(render_pass.get(), subpass.pInputAttachments[j].attachment, true);
         }
     }
 
@@ -474,22 +425,20 @@ void CoreChecks::RecordCreateRenderPassState(RenderPassCreateVersion rp_version,
 }
 
 void CoreChecks::PostCallRecordCreateRenderPass(VkDevice device, const VkRenderPassCreateInfo *pCreateInfo,
-    const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass,
-    VkResult result) {
+                                                const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass,
+                                                VkResult result) {
     if (VK_SUCCESS != result) return;
     auto render_pass_state = std::make_shared<RENDER_PASS_STATE>(pCreateInfo);
     RecordCreateRenderPassState(RENDER_PASS_VERSION_1, render_pass_state, pRenderPass);
 }
 
 void CoreChecks::PostCallRecordCreateRenderPass2KHR(VkDevice device, const VkRenderPassCreateInfo2KHR *pCreateInfo,
-    const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass,
-    VkResult result) {
+                                                    const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass,
+                                                    VkResult result) {
     if (VK_SUCCESS != result) return;
     auto render_pass_state = std::make_shared<RENDER_PASS_STATE>(pCreateInfo);
     RecordCreateRenderPassState(RENDER_PASS_VERSION_2, render_pass_state, pRenderPass);
 }
-
-
 
 void CoreChecks::RetireWorkOnQueue(QUEUE_STATE *pQueue, uint64_t seq) {
     std::unordered_map<VkQueue, uint64_t> otherQueueSeqs;
@@ -507,8 +456,6 @@ void CoreChecks::RetireWorkOnQueue(QUEUE_STATE *pQueue, uint64_t seq) {
         RetireWorkOnQueue(GetQueueState(qs.first), qs.second);
     }
 }
-
-
 
 void CoreChecks::PostCallRecordQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence,
                                            VkResult result) {
@@ -530,7 +477,6 @@ void CoreChecks::PreCallRecordQueueSubmit(VkQueue queue, uint32_t submitCount, c
     }
 }
 
-
 void CoreChecks::RecordGetDeviceQueueState(uint32_t queue_family_index, VkQueue queue) {
     // Add queue to tracking set only if it is new
     auto queue_is_new = queues.emplace(queue);
@@ -541,7 +487,6 @@ void CoreChecks::RecordGetDeviceQueueState(uint32_t queue_family_index, VkQueue 
         queue_state->seq = 0;
     }
 }
-
 
 void CoreChecks::PostCallRecordGetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uint32_t queueIndex, VkQueue *pQueue) {
     RecordGetDeviceQueueState(queueFamilyIndex, *pQueue);
@@ -563,9 +508,6 @@ void CoreChecks::PostCallRecordDeviceWaitIdle(VkDevice device, VkResult result) 
         RetireWorkOnQueue(&queue.second, queue.second.seq + queue.second.submissions.size());
     }
 }
-
-
-
 
 void CoreChecks::PreCallRecordDestroyShaderModule(VkDevice device, VkShaderModule shaderModule,
                                                   const VkAllocationCallbacks *pAllocator) {
@@ -611,7 +553,6 @@ void CoreChecks::PreCallRecordDestroyDescriptorPool(VkDevice device, VkDescripto
     }
 }
 
-
 // Free all command buffers in given list, removing all references/links to them using ResetCommandBufferState
 void CoreChecks::FreeCommandBufferStates(COMMAND_POOL_STATE *pool_state, const uint32_t command_buffer_count,
                                          const VkCommandBuffer *command_buffers) {
@@ -624,8 +565,6 @@ void CoreChecks::FreeCommandBufferStates(COMMAND_POOL_STATE *pool_state, const u
             ResetCommandBufferState(cb_state->commandBuffer);
             // Remove CBState from CB map
             commandBufferMap.erase(cb_state->commandBuffer);
-            ////////// Remove the cb_state's references from COMMAND_POOL_STATEs
-            ////////pool_state->commandBuffers.erase(command_buffers[i]);
             // Remove the cb debug labels
             EraseCmdDebugUtilsLabel(report_data, cb_state->commandBuffer);
             // Remove CBState from CB map
@@ -635,34 +574,32 @@ void CoreChecks::FreeCommandBufferStates(COMMAND_POOL_STATE *pool_state, const u
 }
 
 void CoreChecks::PreCallRecordGetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
-    VkPhysicalDeviceProperties *pPhysicalDeviceProperties) {
+                                                          VkPhysicalDeviceProperties *pPhysicalDeviceProperties) {
     if (enabled.gpu_validation && enabled.gpu_validation_reserve_binding_slot) {
         if (pPhysicalDeviceProperties->limits.maxBoundDescriptorSets > 1) {
             pPhysicalDeviceProperties->limits.maxBoundDescriptorSets -= 1;
         } else {
             log_msg(report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, VK_DEBUG_REPORT_OBJECT_TYPE_PHYSICAL_DEVICE_EXT,
-                HandleToUint64(physicalDevice), "UNASSIGNED-GPU-Assisted Validation Setup Error.",
-                "Unable to reserve descriptor binding slot on a device with only one slot.");
+                    HandleToUint64(physicalDevice), "UNASSIGNED-GPU-Assisted Validation Setup Error.",
+                    "Unable to reserve descriptor binding slot on a device with only one slot.");
         }
     }
 }
 
-
 void CoreChecks::PostCallRecordEnumeratePhysicalDevices(VkInstance instance, uint32_t *pPhysicalDeviceCount,
                                                         VkPhysicalDevice *pPhysicalDevices, VkResult result) {
-     if ((NULL != pPhysicalDevices) && ((result == VK_SUCCESS || result == VK_INCOMPLETE))) {
-         for (uint32_t i = 0; i < *pPhysicalDeviceCount; i++) {
-             auto &phys_device_state = physical_device_map[pPhysicalDevices[i]];
-             phys_device_state.phys_device = pPhysicalDevices[i];
-             // Init actual features for each physical device
-             DispatchGetPhysicalDeviceFeatures(pPhysicalDevices[i], &phys_device_state.features2.features);
+    if ((NULL != pPhysicalDevices) && ((result == VK_SUCCESS || result == VK_INCOMPLETE))) {
+        for (uint32_t i = 0; i < *pPhysicalDeviceCount; i++) {
+            auto &phys_device_state = physical_device_map[pPhysicalDevices[i]];
+            phys_device_state.phys_device = pPhysicalDevices[i];
+            // Init actual features for each physical device
+            DispatchGetPhysicalDeviceFeatures(pPhysicalDevices[i], &phys_device_state.features2.features);
         }
     }
 }
 
 void CoreChecks::PreCallRecordFreeCommandBuffers(VkDevice device, VkCommandPool commandPool, uint32_t commandBufferCount,
                                                  const VkCommandBuffer *pCommandBuffers) {
-    //////auto pPool = GetCommandPoolState(commandPool);
     FreeCommandBufferStates(nullptr, commandBufferCount, pCommandBuffers);
 }
 
@@ -703,7 +640,6 @@ void CoreChecks::UpdateDrawState(CMD_BUFFER_STATE *cb_state, const VkPipelineBin
                 // Bind this set and its active descriptor resources to the command buffer
                 descriptor_set->UpdateDrawState(this, cb_state, binding_req_map);
                 // For given active slots record updated images & buffers
-                ////// LUGMAL descriptor_set->GetStorageUpdates(binding_req_map, &cb_state->updateBuffers, &cb_state->updateImages);
             }
         }
     }
@@ -728,16 +664,16 @@ std::shared_ptr<RENDER_PASS_STATE> CoreChecks::GetRenderPassStateSharedPtr(VkRen
 }
 
 bool CoreChecks::PreCallValidateCreateGraphicsPipelines(VkDevice device, VkPipelineCache pipelineCache, uint32_t count,
-    const VkGraphicsPipelineCreateInfo *pCreateInfos,
-    const VkAllocationCallbacks *pAllocator, VkPipeline *pPipelines,
-    void *cgpl_state_data) {
+                                                        const VkGraphicsPipelineCreateInfo *pCreateInfos,
+                                                        const VkAllocationCallbacks *pAllocator, VkPipeline *pPipelines,
+                                                        void *cgpl_state_data) {
     bool skip = false;
     create_graphics_pipeline_api_state *cgpl_state = reinterpret_cast<create_graphics_pipeline_api_state *>(cgpl_state_data);
     cgpl_state->pipe_state.reserve(count);
     for (uint32_t i = 0; i < count; i++) {
         cgpl_state->pipe_state.push_back(std::unique_ptr<PIPELINE_STATE>(new PIPELINE_STATE));
         (cgpl_state->pipe_state)[i]->initGraphicsPipeline(&pCreateInfos[i],
-            GetRenderPassStateSharedPtr(pCreateInfos[i].renderPass));
+                                                          GetRenderPassStateSharedPtr(pCreateInfos[i].renderPass));
         (cgpl_state->pipe_state)[i]->pipeline_layout = *GetPipelineLayout(pCreateInfos[i].layout);
     }
 
@@ -778,7 +714,6 @@ void CoreChecks::PostCallRecordCreateGraphicsPipelines(VkDevice device, VkPipeli
     }
     cgpl_state->pipe_state.clear();
 }
-
 
 void CoreChecks::PostCallRecordCreateComputePipelines(VkDevice device, VkPipelineCache pipelineCache, uint32_t count,
                                                       const VkComputePipelineCreateInfo *pCreateInfos,
@@ -850,26 +785,8 @@ void CoreChecks::PostCallRecordCreatePipelineLayout(VkDevice device, const VkPip
     std::unique_ptr<PIPELINE_LAYOUT_STATE> pipeline_layout_state(new PIPELINE_LAYOUT_STATE{});
     pipeline_layout_state->layout = *pPipelineLayout;
     pipeline_layout_state->set_layouts.resize(pCreateInfo->setLayoutCount);
-    ////////PipelineLayoutSetLayoutsDef set_layouts(pCreateInfo->setLayoutCount);
-    ////////for (uint32_t i = 0; i < pCreateInfo->setLayoutCount; ++i) {
-    ////////    pipeline_layout_state->set_layouts[i] = GetDescriptorSetLayout(this, pCreateInfo->pSetLayouts[i]);
-    ////////    set_layouts[i] = pipeline_layout_state->set_layouts[i]->GetLayoutId();
-    ////////}
-
-    // Get canonical form IDs for the "compatible for set" contents
-    ////////pipeline_layout_state->push_constant_ranges = GetCanonicalId(pCreateInfo);
-    ////////auto set_layouts_id = pipeline_layout_set_layouts_dict.look_up(set_layouts);
-    ////////pipeline_layout_state->compat_for_set.reserve(pCreateInfo->setLayoutCount);
-
-    ////////// Create table of "compatible for set N" cannonical forms for trivial accept validation
-    ////////for (uint32_t i = 0; i < pCreateInfo->setLayoutCount; ++i) {
-    ////////    pipeline_layout_state->compat_for_set.emplace_back(
-    ////////        GetCanonicalId(i, pipeline_layout_state->push_constant_ranges, set_layouts_id));
-    ////////}
     pipelineLayoutMap[*pPipelineLayout] = std::move(pipeline_layout_state);
-
 }
-
 
 // Ensure the pool contains enough descriptors and descriptor sets to satisfy
 // an allocation request. Fills common_data with the total number of descriptors of each type required,
@@ -894,7 +811,6 @@ void CoreChecks::PostCallRecordAllocateDescriptorSets(VkDevice device, const VkD
     PerformAllocateDescriptorSets(pAllocateInfo, pDescriptorSets, ads_state);
 }
 
-
 void CoreChecks::PreCallRecordUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
                                                    const VkWriteDescriptorSet *pDescriptorWrites, uint32_t descriptorCopyCount,
                                                    const VkCopyDescriptorSet *pDescriptorCopies) {
@@ -905,19 +821,15 @@ void CoreChecks::PreCallRecordUpdateDescriptorSets(VkDevice device, uint32_t des
 void CoreChecks::PostCallRecordAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo *pCreateInfo,
                                                       VkCommandBuffer *pCommandBuffer, VkResult result) {
     if (VK_SUCCESS != result) return;
-    ////////auto pPool = GetCommandPoolState(pCreateInfo->commandPool);
-    ////////if (pPool) {
-        for (uint32_t i = 0; i < pCreateInfo->commandBufferCount; i++) {
-            // Add command buffer to its commandPool map
-            ////////pPool->commandBuffers.insert(pCommandBuffer[i]);
-            std::unique_ptr<CMD_BUFFER_STATE> pCB(new CMD_BUFFER_STATE{});
-            pCB->createInfo = *pCreateInfo;
-            pCB->device = device;
-            // Add command buffer to map
-            commandBufferMap[pCommandBuffer[i]] = std::move(pCB);
-            ResetCommandBufferState(pCommandBuffer[i]);
-        }
-    ////////}
+    for (uint32_t i = 0; i < pCreateInfo->commandBufferCount; i++) {
+        // Add command buffer to its commandPool map
+        std::unique_ptr<CMD_BUFFER_STATE> pCB(new CMD_BUFFER_STATE{});
+        pCB->createInfo = *pCreateInfo;
+        pCB->device = device;
+        // Add command buffer to map
+        commandBufferMap[pCommandBuffer[i]] = std::move(pCB);
+        ResetCommandBufferState(pCommandBuffer[i]);
+    }
 }
 
 void CoreChecks::PostCallRecordResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags flags, VkResult result) {
@@ -938,7 +850,6 @@ static const char *GetPipelineTypeName(VkPipelineBindPoint pipelineBindPoint) {
             return "unknown";
     }
 }
-
 
 void CoreChecks::PreCallRecordCmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,
                                               VkPipeline pipeline) {
@@ -963,7 +874,6 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
 
     uint32_t required_size = first_set + set_count;
     const uint32_t last_binding_index = required_size - 1;
-    ////assert(last_binding_index < pipeline_layout->compat_for_set.size());
 
     // Some useful shorthand
     auto &last_bound = cb_state->lastBound[pipeline_bind_point];
@@ -1030,7 +940,6 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
             push_descriptor_cleanup(bound_sets[set_idx]);
         }
         bound_sets[set_idx] = descriptor_set;
-        ////bound_compat_ids[set_idx] = pipe_compat_ids[set_idx];  // compat ids are canonical *per* set index
 
         if (descriptor_set) {
             auto set_dynamic_descriptor_count = descriptor_set->GetDynamicDescriptorCount();
@@ -1074,7 +983,6 @@ void CoreChecks::PreCallRecordCmdBindDescriptorSets(VkCommandBuffer commandBuffe
         cb_state->lastBound[pipelineBindPoint].pipeline_layout = layout;
     }
 }
-
 
 void CoreChecks::RecordCmdPushDescriptorSetState(CMD_BUFFER_STATE *cb_state, VkPipelineBindPoint pipelineBindPoint,
                                                  VkPipelineLayout layout, uint32_t set, uint32_t descriptorWriteCount,
@@ -1132,8 +1040,6 @@ void CoreChecks::PreCallRecordCmdWaitEvents(VkCommandBuffer commandBuffer, uint3
     }
 }
 
-
-
 void CoreChecks::PreCallRecordCmdBeginDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT *pLabelInfo) {
     BeginCmdDebugUtilsLabel(report_data, commandBuffer, pLabelInfo);
 }
@@ -1149,4 +1055,3 @@ void CoreChecks::PreCallRecordCmdInsertDebugUtilsLabelEXT(VkCommandBuffer comman
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     cb_state->debug_label = LoggingLabel(pLabelInfo);
 }
-

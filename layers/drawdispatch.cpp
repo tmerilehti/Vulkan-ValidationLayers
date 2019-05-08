@@ -49,7 +49,6 @@ void CoreChecks::UpdateStateCmdDrawDispatchType(CMD_BUFFER_STATE *cb_state, VkPi
 // Generic function to handle state update for all CmdDraw* type functions
 void CoreChecks::UpdateStateCmdDrawType(CMD_BUFFER_STATE *cb_state, VkPipelineBindPoint bind_point) {
     UpdateStateCmdDrawDispatchType(cb_state, bind_point);
-    //////UpdateResourceTrackingOnDraw(cb_state);
     cb_state->hasDrawCmd = true;
 }
 void CoreChecks::PostCallRecordCmdDispatch(VkCommandBuffer commandBuffer, uint32_t x, uint32_t y, uint32_t z) {
