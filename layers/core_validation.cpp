@@ -256,6 +256,84 @@ static void AddCommandBufferBinding(std::unordered_set<CMD_BUFFER_STATE *> *cb_b
 // Reset the command buffer state
 //  Maintain the createInfo and set state to CB_NEW, but clear all other state
 void CoreChecks::ResetCommandBufferState(const VkCommandBuffer cb) {
+    CMD_BUFFER_STATE *pCB = GetCBState(cb);
+    if (pCB) {
+        pCB->in_use.store(0);
+        // Reset CB state (note that createInfo is not cleared)
+        pCB->commandBuffer = cb;
+        memset(&pCB->beginInfo, 0, sizeof(VkCommandBufferBeginInfo));
+        memset(&pCB->inheritanceInfo, 0, sizeof(VkCommandBufferInheritanceInfo));
+        pCB->hasDrawCmd = false;
+        pCB->state = CB_NEW;
+        pCB->submitCount = 0;
+        pCB->image_layout_change_count = 1;  // Start at 1. 0 is insert value for validation cache versions, s.t. new == dirty
+        pCB->status = 0;
+        pCB->static_status = 0;
+        pCB->viewportMask = 0;
+        pCB->scissorMask = 0;
+
+        for (auto &item : pCB->lastBound) {
+            item.second.reset();
+        }
+
+        memset(&pCB->activeRenderPassBeginInfo, 0, sizeof(pCB->activeRenderPassBeginInfo));
+        pCB->activeRenderPass = nullptr;
+        pCB->activeSubpassContents = VK_SUBPASS_CONTENTS_INLINE;
+        pCB->activeSubpass = 0;
+        pCB->broken_bindings.clear();
+        pCB->waitedEvents.clear();
+        pCB->events.clear();
+        pCB->writeEventsBeforeWait.clear();
+        pCB->waitedEventsBeforeQueryReset.clear();
+        pCB->queryToStateMap.clear();
+        pCB->activeQueries.clear();
+        pCB->startedQueries.clear();
+        pCB->image_layout_map.clear();
+        pCB->eventToStageMap.clear();
+        pCB->draw_data.clear();
+        pCB->current_draw_data.vertex_buffer_bindings.clear();
+        pCB->vertex_buffer_used = false;
+        pCB->primaryCommandBuffer = VK_NULL_HANDLE;
+        // If secondary, invalidate any primary command buffer that may call us.
+        if (pCB->createInfo.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) {
+            InvalidateCommandBuffers(pCB->linkedCommandBuffers, { HandleToUint64(cb), kVulkanObjectTypeCommandBuffer });
+        }
+
+        // Remove reverse command buffer links.
+        for (auto pSubCB : pCB->linkedCommandBuffers) {
+            pSubCB->linkedCommandBuffers.erase(pCB);
+        }
+        pCB->linkedCommandBuffers.clear();
+        pCB->updateImages.clear();
+        pCB->updateBuffers.clear();
+        ////////ClearCmdBufAndMemReferences(pCB);
+        pCB->queue_submit_functions.clear();
+        pCB->cmd_execute_commands_functions.clear();
+        pCB->eventUpdates.clear();
+        pCB->queryUpdates.clear();
+
+        ////////// Remove object bindings
+        ////////for (auto obj : pCB->object_bindings) {
+        ////////    RemoveCommandBufferBinding(&obj, pCB);
+        ////////}
+        pCB->object_bindings.clear();
+        ////////// Remove this cmdBuffer's reference from each FrameBuffer's CB ref list
+        ////////for (auto framebuffer : pCB->framebuffers) {
+        ////////    auto fb_state = GetFramebufferState(framebuffer);
+        ////////    if (fb_state) fb_state->cb_bindings.erase(pCB);
+        ////////}
+        ////////pCB->framebuffers.clear();
+        pCB->activeFramebuffer = VK_NULL_HANDLE;
+        memset(&pCB->index_buffer_binding, 0, sizeof(pCB->index_buffer_binding));
+
+        pCB->qfo_transfer_image_barriers.Reset();
+        pCB->qfo_transfer_buffer_barriers.Reset();
+
+        // Clean up the label data
+        ResetCmdDebugUtilsLabel(report_data, pCB->commandBuffer);
+        pCB->debug_label.Reset();
+    }
+
     if (enabled.gpu_validation) {
         GpuResetCommandBuffer(cb);
     }
@@ -354,7 +432,6 @@ void CoreChecks::PreCallRecordDestroyDevice(VkDevice device, const VkAllocationC
     renderPassMap.clear();
     // This will also delete all sets in the pool & remove them from setMap
     // All sets should be removed
-    assert(setMap.empty());
     queueMap.clear();
     layer_debug_utils_destroy_device(device);
 }
