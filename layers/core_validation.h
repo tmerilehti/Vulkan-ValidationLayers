@@ -436,6 +436,12 @@ class CoreChecks : public ValidationObject {
     bool ValidateCmdDrawType(VkCommandBuffer cmd_buffer, bool indexed, VkPipelineBindPoint bind_point, CMD_TYPE cmd_type,
                              const char* caller, VkQueueFlags queue_flags, const char* queue_flag_code,
                              const char* renderpass_msg_code, const char* pipebound_msg_code, const char* dynamic_state_msg_code);
+    bool ValidateCmdDraw_1234(CMD_BUFFER_STATE* cb_state, const char* cmd_type);
+    bool ValidateCmdDraw_12(CMD_BUFFER_STATE* cb_state, const char* cmd_type);
+    bool ValidateCmdDraw_34(CMD_BUFFER_STATE* cb_state, const char* cmd_type);
+    bool ValidateCmdDraw_2(CMD_BUFFER_STATE* cb_state);
+    bool ValidateCmdDraw_3(CMD_BUFFER_STATE* cb_state);
+    bool ValidateCmdDraw_4(CMD_BUFFER_STATE* cb_state);
     void UpdateStateCmdDrawDispatchType(CMD_BUFFER_STATE* cb_state, VkPipelineBindPoint bind_point);
     void UpdateStateCmdDrawType(CMD_BUFFER_STATE* cb_state, VkPipelineBindPoint bind_point);
     bool ValidateCmdNextSubpass(RenderPassCreateVersion rp_version, VkCommandBuffer commandBuffer);

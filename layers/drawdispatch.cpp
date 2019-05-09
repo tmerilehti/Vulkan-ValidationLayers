@@ -57,6 +57,29 @@ bool CoreChecks::ValidateCmdDrawType(VkCommandBuffer cmd_buffer, bool indexed, V
             ValidateCmdBufDrawState(cb_state, cmd_type, indexed, bind_point, caller, pipebound_msg_code, dynamic_state_msg_code);
         skip |= (VK_PIPELINE_BIND_POINT_GRAPHICS == bind_point) ? OutsideRenderPass(cb_state, caller, renderpass_msg_code)
                                                                 : InsideRenderPass(cb_state, caller, renderpass_msg_code);
+        switch (cmd_type) {
+            case CMD_DRAW:
+                skip |= ValidateCmdDraw_1234(cb_state,"vkCmdDraw");
+                skip |= ValidateCmdDraw_12(cb_state, "vkCmdDraw");
+                break;
+            case CMD_DRAWINDEXED:
+                skip |= ValidateCmdDraw_1234(cb_state, "vkCmdDrawIndexed");
+                skip |= ValidateCmdDraw_12(cb_state, "vkCmdDrawIndexed");
+                skip |= ValidateCmdDraw_2(cb_state);
+                break;
+            case CMD_DRAWINDIRECT:
+                skip |= ValidateCmdDraw_1234(cb_state, "vkCmdDrawIndirect");
+                skip |= ValidateCmdDraw_34(cb_state, "vkCmdDrawIndirect");
+                skip |= ValidateCmdDraw_3(cb_state);
+                break;
+            case CMD_DRAWINDEXEDINDIRECT:
+                skip |= ValidateCmdDraw_1234(cb_state, "vkCmdDrawIndexedIndirect");
+                skip |= ValidateCmdDraw_34(cb_state, "vkCmdDrawIndexedIndirect");
+                skip |= ValidateCmdDraw_4(cb_state);
+                break;
+            default:
+                break;
+                }
     }
     return skip;
 }
@@ -425,4 +448,93 @@ void CoreChecks::PreCallRecordCmdDrawMeshTasksIndirectCountNV(VkCommandBuffer co
     if (count_buffer_state) {
         AddCommandBufferBindingBuffer(cb_state, count_buffer_state);
     }
+}
+
+bool CoreChecks::ValidateCmdDraw_1234(CMD_BUFFER_STATE *cb_state, const char *cmd_type) {
+    bool skip = false;
+
+    std::vector<const cvdescriptorset::ImageSamplerDescriptor *> image_sampler_descriptors;
+    auto const &state = cb_state->lastBound[VK_PIPELINE_BIND_POINT_GRAPHICS];
+    for (auto descriptorSet : state.boundDescriptorSets) {
+        for (uint32_t i = 0; i < descriptorSet->GetTotalDescriptorCount(); ++i) {
+            auto descriptor = descriptorSet->GetDescriptorFromGlobalIndex(i);
+            if (descriptor->GetClass() == cvdescriptorset::ImageSampler) {
+                image_sampler_descriptors.emplace_back(static_cast<const cvdescriptorset::ImageSamplerDescriptor *>(descriptor));
+            }
+        }
+    }
+    for (auto framebuffer : cb_state->framebuffers) {
+        FRAMEBUFFER_STATE* fb_state = GetFramebufferState(framebuffer);
+        for (uint32_t i = 0; i < fb_state->createInfo.attachmentCount; ++i) {
+            IMAGE_VIEW_STATE *iv_state = GetImageViewState(fb_state->createInfo.pAttachments[i]);
+            if (iv_state) {
+                for (uint32_t j = 0; j < image_sampler_descriptors.size(); ++j) {
+                    if (image_sampler_descriptors[j]->GetImageView() == iv_state->image_view) {
+                        SAMPLER_STATE *s_state = GetSamplerState(image_sampler_descriptors[j]->GetSampler());
+                        if (s_state && (s_state->createInfo.magFilter == VK_FILTER_LINEAR ||
+                                        s_state->createInfo.minFilter == VK_FILTER_LINEAR)) {
+                            IMAGE_STATE *image_state = GetImageState(iv_state->create_info.image);
+                            VkFormatProperties format_properties = GetPDFormatProperties(iv_state->create_info.format);
+                            VkFormatFeatureFlags tiling_features = (image_state->createInfo.tiling & VK_IMAGE_TILING_LINEAR)
+                                                                       ? format_properties.linearTilingFeatures
+                                                                       : format_properties.optimalTilingFeatures;
+                            if (!(tiling_features & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
+                                std::stringstream error_str;
+                                error_str << "VUID - " << cmd_type << " - None - 02690";
+                                skip |= log_msg(
+                                    report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT,
+                                    HandleToUint64(cb_state->commandBuffer), error_str.str(),
+                                    "The image view [%s] with format %s & tiling %s does not support "
+                                    "VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT.",
+                                    report_data->FormatHandle(iv_state->image_view), string_VkFormat(iv_state->create_info.format),
+                                    string_VkImageTiling(image_state->createInfo.tiling));
+                            }
+                        }
+                        if (s_state && (s_state->createInfo.magFilter == VK_FILTER_CUBIC_EXT ||
+                                        s_state->createInfo.minFilter == VK_FILTER_CUBIC_EXT)) {
+                            IMAGE_STATE *image_state = GetImageState(iv_state->create_info.image);
+                            VkFormatProperties format_properties = GetPDFormatProperties(iv_state->create_info.format);
+                            VkFormatFeatureFlags tiling_features = (image_state->createInfo.tiling & VK_IMAGE_TILING_LINEAR)
+                                                                       ? format_properties.linearTilingFeatures
+                                                                       : format_properties.optimalTilingFeatures;
+                            if (!(tiling_features & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_EXT)) {
+                                std::stringstream error_str;
+                                error_str << "VUID - " << cmd_type << " - None - 02692";
+                                skip |= log_msg(
+                                    report_data, VK_DEBUG_REPORT_ERROR_BIT_EXT, VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT,
+                                    HandleToUint64(cb_state->commandBuffer), error_str.str(),
+                                    "The image view [%s] with format %s & tiling %s does not support "
+                                    "VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT.",
+                                    report_data->FormatHandle(iv_state->image_view), string_VkFormat(iv_state->create_info.format),
+                                    string_VkImageTiling(image_state->createInfo.tiling));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return skip;
+}
+
+bool CoreChecks::ValidateCmdDraw_12(CMD_BUFFER_STATE *cb_state, const char *cmd_type) {
+    bool skip = false;
+
+    return skip;
+}
+bool CoreChecks::ValidateCmdDraw_34(CMD_BUFFER_STATE *cb_state, const char *cmd_type) {
+    bool skip = false;
+    return skip;
+}
+bool CoreChecks::ValidateCmdDraw_2(CMD_BUFFER_STATE *cb_state) {
+    bool skip = false;
+    return skip;
+}
+bool CoreChecks::ValidateCmdDraw_3(CMD_BUFFER_STATE *cb_state) {
+    bool skip = false;
+    return skip;
+}
+bool CoreChecks::ValidateCmdDraw_4(CMD_BUFFER_STATE *cb_state) {
+    bool skip = false;
+    return skip;
 }
