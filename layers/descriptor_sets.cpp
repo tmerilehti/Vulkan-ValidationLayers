@@ -451,7 +451,7 @@ cvdescriptorset::DescriptorSet::DescriptorSet(const VkDescriptorSet set, const V
     }
 }
 
-cvdescriptorset::DescriptorSet::~DescriptorSet() { InvalidateBoundCmdBuffers(); }
+cvdescriptorset::DescriptorSet::~DescriptorSet() {}
 
 static std::string StringDescriptorReqViewType(descriptor_req req) {
     std::string result("");
@@ -488,12 +488,6 @@ static unsigned DescriptorRequirementsBitsFromFormat(VkFormat fmt) {
     return DESCRIPTOR_REQ_COMPONENT_TYPE_FLOAT;
 }
 
-
-// Set is being deleted or updates so invalidate all bound cmd buffers
-void cvdescriptorset::DescriptorSet::InvalidateBoundCmdBuffers() {
-    device_data_->InvalidateCommandBuffers(cb_bindings, {HandleToUint64(set_), kVulkanObjectTypeDescriptorSet});
-}
-
 // Loop through the write updates to do for a push descriptor set, ignoring dstSet
 void cvdescriptorset::DescriptorSet::PerformPushDescriptorsUpdate(uint32_t write_count, const VkWriteDescriptorSet *p_wds) {
     assert(IsPushDescriptor());
@@ -523,10 +517,6 @@ void cvdescriptorset::DescriptorSet::PerformWriteUpdate(const VkWriteDescriptorS
     }
     if (update->descriptorCount) some_update_ = true;
 
-    if (!(p_layout_->GetDescriptorBindingFlagsFromBinding(update->dstBinding) &
-          (VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT))) {
-        InvalidateBoundCmdBuffers();
-    }
 }
 // Perform Copy update
 void cvdescriptorset::DescriptorSet::PerformCopyUpdate(const VkCopyDescriptorSet *update, const DescriptorSet *src_set) {
@@ -543,11 +533,6 @@ void cvdescriptorset::DescriptorSet::PerformCopyUpdate(const VkCopyDescriptorSet
             dst->updated = false;
         }
     }
-
-    if (!(p_layout_->GetDescriptorBindingFlagsFromBinding(update->dstBinding) &
-          (VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT))) {
-        InvalidateBoundCmdBuffers();
-    }
 }
 
 // Update the drawing state for the affected descriptors.
@@ -561,10 +546,6 @@ void cvdescriptorset::DescriptorSet::UpdateDrawState(CoreChecks *device_data, CM
                                                      const std::map<uint32_t, descriptor_req> &binding_req_map) {
     // bind cb to this descriptor set
     cb_bindings.insert(cb_node);
-    // Add bindings for descriptor set, the set's pool, and individual objects in the set
-    cb_node->object_bindings.insert({HandleToUint64(set_), kVulkanObjectTypeDescriptorSet});
-    pool_state_->cb_bindings.insert(cb_node);
-    cb_node->object_bindings.insert({HandleToUint64(pool_state_->pool), kVulkanObjectTypeDescriptorPool});
     // For the active slots, use set# to look up descriptorSet from boundDescriptorSets, and bind all of that descriptor set's
     // resources
     for (auto binding_req_pair : binding_req_map) {
@@ -940,7 +921,6 @@ void CoreChecks::PerformAllocateDescriptorSets(const VkDescriptorSetAllocateInfo
 
         std::unique_ptr<cvdescriptorset::DescriptorSet> new_ds(new cvdescriptorset::DescriptorSet(
             descriptor_sets[i], p_alloc_info->descriptorPool, ds_data->layout_nodes[i], variable_count, this));
-        new_ds->in_use.store(0);
         setMap[descriptor_sets[i]] = std::move(new_ds);
     }
 }

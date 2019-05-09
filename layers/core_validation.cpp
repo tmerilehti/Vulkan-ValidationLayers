@@ -57,12 +57,12 @@ using std::unordered_map;
 using std::unordered_set;
 using std::vector;
 
-QUEUE_STATE *CoreChecks::GetQueueState(VkQueue queue) {
+uint32_t CoreChecks::GetQueueState(VkQueue queue) {
     auto it = queueMap.find(queue);
     if (it == queueMap.end()) {
-        return nullptr;
+        return 0;
     }
-    return &it->second;
+    return it->second;
 }
 
 COMMAND_POOL_STATE *CoreChecks::GetCommandPoolState(VkCommandPool pool) {
@@ -135,8 +135,6 @@ cvdescriptorset::DescriptorSet *CoreChecks::GetSetNode(VkDescriptorSet set) {
     return set_it->second.get();
 }
 
-// Block of code at start here specifically for managing/tracking DSs
-
 // Return Pool node ptr for specified pool or else NULL
 DESCRIPTOR_POOL_STATE *CoreChecks::GetDescriptorPoolState(const VkDescriptorPool pool) {
     auto pool_it = descriptorPoolMap.find(pool);
@@ -176,46 +174,27 @@ CMD_BUFFER_STATE *CoreChecks::GetCBState(const VkCommandBuffer cb) {
 //  Add cb_binding to object
 static void AddCommandBufferBinding(std::unordered_set<CMD_BUFFER_STATE *> *cb_bindings, VK_OBJECT obj, CMD_BUFFER_STATE *cb_node) {
     cb_bindings->insert(cb_node);
-    cb_node->object_bindings.insert(obj);
 }
 // Reset the command buffer state
 //  Maintain the createInfo and set state to CB_NEW, but clear all other state
 void CoreChecks::ResetCommandBufferState(const VkCommandBuffer cb) {
     CMD_BUFFER_STATE *pCB = GetCBState(cb);
     if (pCB) {
-        pCB->in_use.store(0);
         // Reset CB state (note that createInfo is not cleared)
         pCB->commandBuffer = cb;
-        memset(&pCB->beginInfo, 0, sizeof(VkCommandBufferBeginInfo));
         pCB->hasDrawCmd = false;
-        pCB->state = CB_NEW;
-        pCB->submitCount = 0;
-        pCB->status = 0;
-        pCB->static_status = 0;
-
         for (auto &item : pCB->lastBound) {
             item.second.reset();
         }
 
         pCB->activeRenderPass = nullptr;
-        pCB->activeSubpassContents = VK_SUBPASS_CONTENTS_INLINE;
-        pCB->activeSubpass = 0;
-        pCB->broken_bindings.clear();
         pCB->primaryCommandBuffer = VK_NULL_HANDLE;
-        // If secondary, invalidate any primary command buffer that may call us.
-        if (pCB->createInfo.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) {
-            InvalidateCommandBuffers(pCB->linkedCommandBuffers, {HandleToUint64(cb), kVulkanObjectTypeCommandBuffer});
-        }
 
         // Remove reverse command buffer links.
         for (auto pSubCB : pCB->linkedCommandBuffers) {
             pSubCB->linkedCommandBuffers.erase(pCB);
         }
         pCB->linkedCommandBuffers.clear();
-        pCB->queue_submit_functions.clear();
-
-        pCB->object_bindings.clear();
-        pCB->activeFramebuffer = VK_NULL_HANDLE;
 
         // Clean up the label data
         ResetCmdDebugUtilsLabel(report_data, pCB->commandBuffer);
@@ -287,25 +266,9 @@ void CoreChecks::PostCallRecordCreateDevice(VkPhysicalDevice gpu, const VkDevice
     DispatchGetPhysicalDeviceProperties(gpu, &core_checks->phys_dev_props);
 
     const auto &dev_ext = core_checks->device_extensions;
-    auto *phys_dev_props = &core_checks->phys_dev_ext_props;
-
-    if (dev_ext.vk_khr_push_descriptor) {
-        // Get the needed push_descriptor limits
-        VkPhysicalDevicePushDescriptorPropertiesKHR push_descriptor_prop;
-        GetPhysicalDeviceExtProperties(gpu, dev_ext.vk_khr_push_descriptor, &push_descriptor_prop);
-        phys_dev_props->max_push_descriptors = push_descriptor_prop.maxPushDescriptors;
-    }
 
     if (enabled.gpu_validation) {
         core_checks->GpuPostCallRecordCreateDevice(&enabled);
-    }
-
-    // Store queue family data
-    if ((pCreateInfo != nullptr) && (pCreateInfo->pQueueCreateInfos != nullptr)) {
-        for (uint32_t i = 0; i < pCreateInfo->queueCreateInfoCount; ++i) {
-            core_checks->queue_family_index_map.insert(
-                std::make_pair(pCreateInfo->pQueueCreateInfos[i].queueFamilyIndex, pCreateInfo->pQueueCreateInfos[i].queueCount));
-        }
     }
 }
 
@@ -327,7 +290,6 @@ void CoreChecks::PreCallRecordDestroyRenderPass(VkDevice device, VkRenderPass re
     if (!renderPass) return;
     RENDER_PASS_STATE *rp_state = GetRenderPassState(renderPass);
     VK_OBJECT obj_struct = {HandleToUint64(renderPass), kVulkanObjectTypeRenderPass};
-    InvalidateCommandBuffers(rp_state->cb_bindings, obj_struct);
     renderPassMap.erase(renderPass);
 }
 
@@ -367,25 +329,6 @@ void CoreChecks::PreCallRecordQueueSubmit(VkQueue queue, uint32_t submitCount, c
     }
 }
 
-void CoreChecks::RecordGetDeviceQueueState(uint32_t queue_family_index, VkQueue queue) {
-    // Add queue to tracking set only if it is new
-    auto queue_is_new = queues.emplace(queue);
-    if (queue_is_new.second == true) {
-        QUEUE_STATE *queue_state = &queueMap[queue];
-        queue_state->queue = queue;
-        queue_state->queueFamilyIndex = queue_family_index;
-        queue_state->seq = 0;
-    }
-}
-
-void CoreChecks::PostCallRecordGetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uint32_t queueIndex, VkQueue *pQueue) {
-    RecordGetDeviceQueueState(queueFamilyIndex, *pQueue);
-}
-
-void CoreChecks::PostCallRecordGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2 *pQueueInfo, VkQueue *pQueue) {
-    RecordGetDeviceQueueState(pQueueInfo->queueFamilyIndex, *pQueue);
-}
-
 void CoreChecks::PreCallRecordDestroyShaderModule(VkDevice device, VkShaderModule shaderModule,
                                                   const VkAllocationCallbacks *pAllocator) {
     if (!shaderModule) return;
@@ -397,7 +340,6 @@ void CoreChecks::PreCallRecordDestroyPipeline(VkDevice device, VkPipeline pipeli
     PIPELINE_STATE *pipeline_state = GetPipelineState(pipeline);
     VK_OBJECT obj_struct = {HandleToUint64(pipeline), kVulkanObjectTypePipeline};
     // Any bound cmd buffers are now invalid
-    InvalidateCommandBuffers(pipeline_state->cb_bindings, obj_struct);
     if (enabled.gpu_validation) {
         GpuPreCallRecordDestroyPipeline(pipeline);
     }
@@ -420,8 +362,6 @@ void CoreChecks::PreCallRecordDestroyDescriptorPool(VkDevice device, VkDescripto
     DESCRIPTOR_POOL_STATE *desc_pool_state = GetDescriptorPoolState(descriptorPool);
     VK_OBJECT obj_struct = {HandleToUint64(descriptorPool), kVulkanObjectTypeDescriptorPool};
     if (desc_pool_state) {
-        // Any bound cmd buffers are now invalid
-        InvalidateCommandBuffers(desc_pool_state->cb_bindings, obj_struct);
         // Free sets that were in this pool
         for (auto ds : desc_pool_state->sets) {
             FreeDescriptorSet(ds);
@@ -478,27 +418,6 @@ void CoreChecks::PreCallRecordFreeCommandBuffers(VkDevice device, VkCommandPool 
     FreeCommandBufferStates(nullptr, commandBufferCount, pCommandBuffers);
 }
 
-// For given cb_nodes, invalidate them and track object causing invalidation
-void CoreChecks::InvalidateCommandBuffers(std::unordered_set<CMD_BUFFER_STATE *> const &cb_nodes, VK_OBJECT obj) {
-    for (auto cb_node : cb_nodes) {
-        if (cb_node->state == CB_RECORDING) {
-            log_msg(report_data, VK_DEBUG_REPORT_WARNING_BIT_EXT, VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT,
-                    HandleToUint64(cb_node->commandBuffer), kVUID_Core_DrawState_InvalidCommandBuffer,
-                    "Invalidating a command buffer that's currently being recorded: %s.",
-                    report_data->FormatHandle(cb_node->commandBuffer).c_str());
-            cb_node->state = CB_INVALID_INCOMPLETE;
-        } else if (cb_node->state == CB_RECORDED) {
-            cb_node->state = CB_INVALID_COMPLETE;
-        }
-        cb_node->broken_bindings.push_back(obj);
-
-        // if secondary, then propagate the invalidation to the primaries that will call us.
-        if (cb_node->createInfo.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) {
-            InvalidateCommandBuffers(cb_node->linkedCommandBuffers, obj);
-        }
-    }
-}
-
 void CoreChecks::UpdateDrawState(CMD_BUFFER_STATE *cb_state, const VkPipelineBindPoint bind_point) {
     auto const &state = cb_state->lastBound[bind_point];
     PIPELINE_STATE *pPipe = state.pipeline_state;
@@ -514,7 +433,6 @@ void CoreChecks::UpdateDrawState(CMD_BUFFER_STATE *cb_state, const VkPipelineBin
 
                 // Bind this set and its active descriptor resources to the command buffer
                 descriptor_set->UpdateDrawState(this, cb_state, binding_req_map);
-                // For given active slots record updated images & buffers
             }
         }
     }
@@ -625,17 +543,6 @@ void CoreChecks::PostCallRecordCreateDescriptorSetLayout(VkDevice device, const 
     descriptorSetLayoutMap[*pSetLayout] = std::make_shared<cvdescriptorset::DescriptorSetLayout>(pCreateInfo, *pSetLayout);
 }
 
-enum DSL_DESCRIPTOR_GROUPS {
-    DSL_TYPE_SAMPLERS = 0,
-    DSL_TYPE_UNIFORM_BUFFERS,
-    DSL_TYPE_STORAGE_BUFFERS,
-    DSL_TYPE_SAMPLED_IMAGES,
-    DSL_TYPE_STORAGE_IMAGES,
-    DSL_TYPE_INPUT_ATTACHMENTS,
-    DSL_TYPE_INLINE_UNIFORM_BLOCK,
-    DSL_NUM_DESCRIPTOR_GROUPS
-};
-
 void CoreChecks::PreCallRecordCreatePipelineLayout(VkDevice device, const VkPipelineLayoutCreateInfo *pCreateInfo,
                                                    const VkAllocationCallbacks *pAllocator, VkPipelineLayout *pPipelineLayout,
                                                    void *cpl_state_data) {
@@ -696,7 +603,6 @@ void CoreChecks::PostCallRecordAllocateCommandBuffers(VkDevice device, const VkC
     for (uint32_t i = 0; i < pCreateInfo->commandBufferCount; i++) {
         // Add command buffer to its commandPool map
         std::unique_ptr<CMD_BUFFER_STATE> pCB(new CMD_BUFFER_STATE{});
-        pCB->createInfo = *pCreateInfo;
         pCB->device = device;
         // Add command buffer to map
         commandBufferMap[pCommandBuffer[i]] = std::move(pCB);
@@ -710,19 +616,6 @@ void CoreChecks::PostCallRecordResetCommandBuffer(VkCommandBuffer commandBuffer,
     }
 }
 
-static const char *GetPipelineTypeName(VkPipelineBindPoint pipelineBindPoint) {
-    switch (pipelineBindPoint) {
-        case VK_PIPELINE_BIND_POINT_GRAPHICS:
-            return "graphics";
-        case VK_PIPELINE_BIND_POINT_COMPUTE:
-            return "compute";
-        case VK_PIPELINE_BIND_POINT_RAY_TRACING_NV:
-            return "ray-tracing";
-        default:
-            return "unknown";
-    }
-}
-
 void CoreChecks::PreCallRecordCmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,
                                               VkPipeline pipeline) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
@@ -731,6 +624,23 @@ void CoreChecks::PreCallRecordCmdBindPipeline(VkCommandBuffer commandBuffer, VkP
     auto pipe_state = GetPipelineState(pipeline);
     cb_state->lastBound[pipelineBindPoint].pipeline_state = pipe_state;
     AddCommandBufferBinding(&pipe_state->cb_bindings, {HandleToUint64(pipeline), kVulkanObjectTypePipeline}, cb_state);
+}
+
+void CoreChecks::PreCallRecordCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents,
+                                            VkPipelineStageFlags sourceStageMask, VkPipelineStageFlags dstStageMask,
+                                            uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
+                                            uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers,
+                                            uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers) {
+    if (enabled.gpu_validation) {
+        GpuPreCallValidateCmdWaitEvents(sourceStageMask);
+    }
+}
+
+void CoreChecks::PreCallRecordCmdPushDescriptorSetKHR(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,
+                                                      VkPipelineLayout layout, uint32_t set, uint32_t descriptorWriteCount,
+                                                      const VkWriteDescriptorSet *pDescriptorWrites) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    RecordCmdPushDescriptorSetState(cb_state, pipelineBindPoint, layout, set, descriptorWriteCount, pDescriptorWrites);
 }
 
 // Update pipeline_layout bind points applying the "Pipeline Layout Compatibility" rules
@@ -803,10 +713,6 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
             } else {
                 dynamic_offsets[set_idx].clear();
             }
-            if (!descriptor_set->IsPushDescriptor()) {
-                // Can't cache validation of push_descriptors
-                cb_state->validated_descriptor_sets.insert(descriptor_set);
-            }
         }
     }
 }
@@ -861,48 +767,123 @@ void CoreChecks::RecordCmdPushDescriptorSetState(CMD_BUFFER_STATE *cb_state, VkP
     push_descriptor_set->PerformPushDescriptorsUpdate(descriptorWriteCount, pDescriptorWrites);
 }
 
-void CoreChecks::PreCallRecordCmdPushDescriptorSetKHR(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,
-                                                      VkPipelineLayout layout, uint32_t set, uint32_t descriptorWriteCount,
-                                                      const VkWriteDescriptorSet *pDescriptorWrites) {
+// Generic function to handle state update for all CmdDraw* and CmdDispatch* type functions
+void CoreChecks::UpdateStateCmdDrawDispatchType(CMD_BUFFER_STATE *cb_state, VkPipelineBindPoint bind_point) {
+    UpdateDrawState(cb_state, bind_point);
+}
+
+// Generic function to handle state update for all CmdDraw* type functions
+void CoreChecks::UpdateStateCmdDrawType(CMD_BUFFER_STATE *cb_state, VkPipelineBindPoint bind_point) {
+    UpdateStateCmdDrawDispatchType(cb_state, bind_point);
+    cb_state->hasDrawCmd = true;
+}
+void CoreChecks::PostCallRecordCmdDispatch(VkCommandBuffer commandBuffer, uint32_t x, uint32_t y, uint32_t z) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
-    RecordCmdPushDescriptorSetState(cb_state, pipelineBindPoint, layout, set, descriptorWriteCount, pDescriptorWrites);
+    UpdateStateCmdDrawDispatchType(cb_state, VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
-static VkDeviceSize GetIndexAlignment(VkIndexType indexType) {
-    switch (indexType) {
-        case VK_INDEX_TYPE_UINT16:
-            return 2;
-        case VK_INDEX_TYPE_UINT32:
-            return 4;
-        default:
-            // Not a real index type. Express no alignment requirement here; we expect upper layer
-            // to have already picked up on the enum being nonsense.
-            return 1;
-    }
-}
-
-void CoreChecks::PreCallRecordCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents,
-                                            VkPipelineStageFlags sourceStageMask, VkPipelineStageFlags dstStageMask,
-                                            uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
-                                            uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers,
-                                            uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers) {
-    if (enabled.gpu_validation) {
-        GpuPreCallValidateCmdWaitEvents(sourceStageMask);
-    }
-}
-
-void CoreChecks::PreCallRecordCmdBeginDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT *pLabelInfo) {
-    BeginCmdDebugUtilsLabel(report_data, commandBuffer, pLabelInfo);
-}
-
-void CoreChecks::PostCallRecordCmdEndDebugUtilsLabelEXT(VkCommandBuffer commandBuffer) {
-    EndCmdDebugUtilsLabel(report_data, commandBuffer);
-}
-
-void CoreChecks::PreCallRecordCmdInsertDebugUtilsLabelEXT(VkCommandBuffer commandBuffer, const VkDebugUtilsLabelEXT *pLabelInfo) {
-    InsertCmdDebugUtilsLabel(report_data, commandBuffer, pLabelInfo);
-
-    // Squirrel away an easily accessible copy.
+void CoreChecks::PostCallRecordCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
-    cb_state->debug_label = LoggingLabel(pLabelInfo);
+    UpdateStateCmdDrawDispatchType(cb_state, VK_PIPELINE_BIND_POINT_COMPUTE);
 }
+
+void CoreChecks::PostCallRecordCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount,
+    uint32_t firstVertex, uint32_t firstInstance) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PostCallRecordCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount, uint32_t instanceCount,
+    uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PostCallRecordCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t count,
+    uint32_t stride) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PostCallRecordCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+    uint32_t count, uint32_t stride) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PreCallRecordCmdDrawIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+    VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount,
+    uint32_t stride) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PreCallRecordCmdDrawIndexedIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+    VkBuffer countBuffer, VkDeviceSize countBufferOffset,
+    uint32_t maxDrawCount, uint32_t stride) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PreCallRecordCmdDrawMeshTasksNV(VkCommandBuffer commandBuffer, uint32_t taskCount, uint32_t firstTask) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PreCallRecordCmdDrawMeshTasksIndirectNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+    uint32_t drawCount, uint32_t stride) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void CoreChecks::PreCallRecordCmdDrawMeshTasksIndirectCountNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+    VkBuffer countBuffer, VkDeviceSize countBufferOffset,
+    uint32_t maxDrawCount, uint32_t stride) {
+    CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
+    UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+
+
+
+
+
+
+
+
+
+
+void CoreChecks::PreCallRecordCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount,
+    uint32_t firstVertex, uint32_t firstInstance) {
+    GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+
+
+void CoreChecks::PreCallRecordCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount, uint32_t instanceCount,
+    uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
+    GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+
+void CoreChecks::PreCallRecordCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t count,
+    uint32_t stride) {
+    GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+
+void CoreChecks::PreCallRecordCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+    uint32_t count, uint32_t stride) {
+    GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+
+void CoreChecks::PreCallRecordCmdDispatch(VkCommandBuffer commandBuffer, uint32_t x, uint32_t y, uint32_t z) {
+    GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+}
+
+void CoreChecks::PreCallRecordCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset) {
+    GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
+}
+
+

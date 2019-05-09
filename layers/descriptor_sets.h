@@ -566,11 +566,6 @@ class DescriptorSet : public BASE_NODE {
     const Descriptor *GetDescriptorFromGlobalIndex(const uint32_t index) const { return descriptors_[index].get(); }
 
    private:
-    bool VerifyWriteUpdateContents(const VkWriteDescriptorSet *, const uint32_t, const char *, std::string *, std::string *) const;
-    bool VerifyCopyUpdateContents(const VkCopyDescriptorSet *, const DescriptorSet *, VkDescriptorType, uint32_t, const char *,
-                                  std::string *, std::string *) const;
-    // Private helper to set all bound cmd buffers to INVALID state
-    void InvalidateBoundCmdBuffers();
     bool some_update_;  // has any part of the set ever been updated?
     VkDescriptorSet set_;
     DESCRIPTOR_POOL_STATE *pool_state_;

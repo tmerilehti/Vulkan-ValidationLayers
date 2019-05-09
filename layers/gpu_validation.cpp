@@ -965,12 +965,7 @@ void CoreChecks::UpdateInstrumentationBuffer(CMD_BUFFER_STATE *cb_node) {
 // Submit a memory barrier on graphics queues.
 // Lazy-create and record the needed command buffer.
 void CoreChecks::SubmitBarrier(VkQueue queue) {
-    uint32_t queue_family_index = 0;
-
-    auto it = queueMap.find(queue);
-    if (it != queueMap.end()) {
-        queue_family_index = it->second.queueFamilyIndex;
-    }
+    uint32_t queue_family_index = GetQueueState(queue);
 
     // Pay attention only to queues that support graphics.
     // This ensures that the command buffer pool is created so that it can be used on a graphics queue.
