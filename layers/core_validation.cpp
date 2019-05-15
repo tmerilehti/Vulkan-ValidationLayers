@@ -44,7 +44,6 @@
 #include "vk_dispatch_table_helper.h"
 #include "vk_enum_string_helper.h"
 #include "chassis.h"
-#include "convert_to_renderpass2.h"
 #include "core_validation.h"
 #include "shader_validation.h"
 #include "vk_layer_utils.h"
