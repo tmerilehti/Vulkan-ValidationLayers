@@ -585,12 +585,12 @@ void CoreChecks::PostCallRecordAllocateDescriptorSets(VkDevice device, const VkD
     PerformAllocateDescriptorSets(pAllocateInfo, pDescriptorSets, ads_state);
 }
 
-void CoreChecks::PreCallRecordUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
-                                                   const VkWriteDescriptorSet *pDescriptorWrites, uint32_t descriptorCopyCount,
-                                                   const VkCopyDescriptorSet *pDescriptorCopies) {
-    cvdescriptorset::PerformUpdateDescriptorSets(this, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount,
-                                                 pDescriptorCopies);
-}
+////////////void CoreChecks::PreCallRecordUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
+////////////                                                   const VkWriteDescriptorSet *pDescriptorWrites, uint32_t descriptorCopyCount,
+////////////                                                   const VkCopyDescriptorSet *pDescriptorCopies) {
+////////////    cvdescriptorset::PerformUpdateDescriptorSets(this, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount,
+////////////                                                 pDescriptorCopies);
+////////////}
 
 void CoreChecks::PostCallRecordAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo *pCreateInfo,
                                                       VkCommandBuffer *pCommandBuffer, VkResult result) {

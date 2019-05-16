@@ -207,15 +207,15 @@ cvdescriptorset::DescriptorSetLayout::DescriptorSetLayout(const VkDescriptorSetL
                                                           const VkDescriptorSetLayout layout)
     : layout_(layout), layout_destroyed_(false), layout_id_(GetCanonicalId(p_create_info)) {}
 
-cvdescriptorset::SamplerDescriptor::SamplerDescriptor(const VkSampler *immut) : sampler_(VK_NULL_HANDLE), immutable_(false) {
-    updated = false;
-    ////////descriptor_class = PlainSampler;
-    if (immut) {
-        sampler_ = *immut;
-        immutable_ = true;
-        updated = true;
-    }
-}
+////////////cvdescriptorset::SamplerDescriptor::SamplerDescriptor(const VkSampler *immut) : sampler_(VK_NULL_HANDLE), immutable_(false) {
+////////////    updated = false;
+////////////    ////////descriptor_class = PlainSampler;
+////////////    if (immut) {
+////////////        sampler_ = *immut;
+////////////        immutable_ = true;
+////////////        updated = true;
+////////////    }
+////////////}
 
 cvdescriptorset::AllocateDescriptorSetsData::AllocateDescriptorSetsData(uint32_t count)
     : required_descriptors_by_type{}, layout_nodes(count, nullptr) {}
@@ -223,8 +223,8 @@ cvdescriptorset::AllocateDescriptorSetsData::AllocateDescriptorSetsData(uint32_t
 cvdescriptorset::DescriptorSet::DescriptorSet(const VkDescriptorSet set, const VkDescriptorPool pool,
                                               const std::shared_ptr<DescriptorSetLayout const> &layout, uint32_t variable_count,
                                               CoreChecks *dev_data)
-    : some_update_(false),
-      set_(set),
+    ////////////////////: some_update_(false),
+    : set_(set),
       pool_state_(nullptr),
       p_layout_(layout),
       device_data_(dev_data),
@@ -234,61 +234,74 @@ cvdescriptorset::DescriptorSet::DescriptorSet(const VkDescriptorSet set, const V
     // Foreach binding, create default descriptors of given type
     descriptors_.reserve(p_layout_->GetTotalDescriptorCount());
     for (uint32_t i = 0; i < p_layout_->GetBindingCount(); ++i) {
-        auto type = p_layout_->GetTypeFromIndex(i);
-        switch (type) {
-            case VK_DESCRIPTOR_TYPE_SAMPLER: {
-                auto immut_sampler = p_layout_->GetImmutableSamplerPtrFromIndex(i);
-                for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di) {
-                    if (immut_sampler) {
-                        descriptors_.emplace_back(new SamplerDescriptor(immut_sampler + di));
-                        some_update_ = true;  // Immutable samplers are updated at creation
-                    } else
-                        descriptors_.emplace_back(new SamplerDescriptor(nullptr));
-                }
-                break;
-            }
-            case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: {
-                auto immut = p_layout_->GetImmutableSamplerPtrFromIndex(i);
-                for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di) {
-                    if (immut) {
-                        descriptors_.emplace_back(new ImageSamplerDescriptor(immut + di));
-                        some_update_ = true;  // Immutable samplers are updated at creation
-                    } else
-                        descriptors_.emplace_back(new ImageSamplerDescriptor(nullptr));
-                }
-                break;
-            }
-            // ImageDescriptors
-            case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-            case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-            case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-                for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
-                    descriptors_.emplace_back(new ImageDescriptor(type));
-                break;
-            case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
-            case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-                for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
-                    descriptors_.emplace_back(new TexelDescriptor(type));
-                break;
-            case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-            case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-            case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-            case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
-                for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
-                    descriptors_.emplace_back(new BufferDescriptor(type));
-                break;
-            case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT:
-                for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
-                    descriptors_.emplace_back(new InlineUniformDescriptor(type));
-                break;
-            case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV:
-                for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
-                    descriptors_.emplace_back(new AccelerationStructureDescriptor(type));
-                break;
-            default:
-                assert(0);  // Bad descriptor type specified
-                break;
-        }
+        ////////////auto type = p_layout_->GetTypeFromIndex(i);
+
+        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
+            descriptors_.emplace_back(new Descriptor);
+
+
+
+        ////////////////switch (type) {
+        ////////////////    case VK_DESCRIPTOR_TYPE_SAMPLER: {
+        ////////////////        ////auto immut_sampler = p_layout_->GetImmutableSamplerPtrFromIndex(i);
+        ////////////////        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di) {
+        ////////////////        ////    if (immut_sampler) {
+        ////////////////        ////        descriptors_.emplace_back(new SamplerDescriptor(immut_sampler + di));
+        ////////////////        ////        ////////some_update_ = true;  // Immutable samplers are updated at creation
+        ////////////////        ////    } else
+        ////////////////        ////        descriptors_.emplace_back(new SamplerDescriptor(nullptr));
+        ////////////////            descriptors_.emplace_back(new Descriptor);
+        ////////////////        }
+        ////////////////        break;
+        ////////////////    }
+        ////////////////    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: {
+        ////////////////        //////////auto immut = p_layout_->GetImmutableSamplerPtrFromIndex(i);
+        ////////////////        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di) {
+        ////////////////        //////////    if (immut) {
+        ////////////////        //////////        descriptors_.emplace_back(new ImageSamplerDescriptor(immut + di));
+        ////////////////        //////////        ////////////some_update_ = true;  // Immutable samplers are updated at creation
+        ////////////////        //////////    } else
+        ////////////////        //////////        descriptors_.emplace_back(new ImageSamplerDescriptor(nullptr));
+        ////////////////            descriptors_.emplace_back(new Descriptor);
+        ////////////////        }
+        ////////////////        break;
+        ////////////////    }
+        ////////////////    // ImageDescriptors
+        ////////////////    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+        ////////////////    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+        ////////////////    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+        ////////////////        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
+        ////////////////            descriptors_.emplace_back(new Descriptor);
+        ////////////////            //////descriptors_.emplace_back(new ImageDescriptor(type));
+        ////////////////        break;
+        ////////////////    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+        ////////////////    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+        ////////////////        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
+        ////////////////            descriptors_.emplace_back(new Descriptor);
+        ////////////////            ////////descriptors_.emplace_back(new TexelDescriptor(type));
+        ////////////////        break;
+        ////////////////    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+        ////////////////    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+        ////////////////    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+        ////////////////    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+        ////////////////        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
+        ////////////////            descriptors_.emplace_back(new Descriptor);
+        ////////////////            //////descriptors_.emplace_back(new BufferDescriptor(type));
+        ////////////////        break;
+        ////////////////    case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT:
+        ////////////////        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
+        ////////////////            descriptors_.emplace_back(new Descriptor);
+        ////////////////            ////////descriptors_.emplace_back(new InlineUniformDescriptor(type));
+        ////////////////        break;
+        ////////////////    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV:
+        ////////////////        for (uint32_t di = 0; di < p_layout_->GetDescriptorCountFromIndex(i); ++di)
+        ////////////////            ////////descriptors_.emplace_back(new AccelerationStructureDescriptor(type));
+        ////////////////            descriptors_.emplace_back(new Descriptor);
+        ////////////////        break;
+        ////////////////    default:
+        ////////////////        assert(0);  // Bad descriptor type specified
+        ////////////////        break;
+        ////////////////}
     }
 }
 
@@ -302,43 +315,43 @@ void cvdescriptorset::DescriptorSet::PerformPushDescriptorsUpdate(uint32_t write
     ////////}
 }
 
-// Perform write update in given update struct
-void cvdescriptorset::DescriptorSet::PerformWriteUpdate(const VkWriteDescriptorSet *update) {
-    //// Perform update on a per-binding basis as consecutive updates roll over to next binding
-    //auto descriptors_remaining = update->descriptorCount;
-    //auto binding_being_updated = update->dstBinding;
-    //auto offset = update->dstArrayElement;
-    //uint32_t update_index = 0;
-    //while (descriptors_remaining) {
-    //    uint32_t update_count = std::min(descriptors_remaining, GetDescriptorCountFromBinding(binding_being_updated));
-    //    auto global_idx = p_layout_->GetGlobalIndexRangeFromBinding(binding_being_updated).start + offset;
-    //    // Loop over the updates for a single binding at a time
-    //    for (uint32_t di = 0; di < update_count; ++di, ++update_index) {
-    //        descriptors_[global_idx + di]->WriteUpdate(update, update_index);
-    //    }
-    //    // Roll over to next binding in case of consecutive update
-    //    descriptors_remaining -= update_count;
-    //    offset = 0;
-    //    binding_being_updated++;
-    //}
-    ////////if (update->descriptorCount) some_update_ = true;
-}
-// Perform Copy update
-void cvdescriptorset::DescriptorSet::PerformCopyUpdate(const VkCopyDescriptorSet *update, const DescriptorSet *src_set) {
-    ////////auto src_start_idx = src_set->GetGlobalIndexRangeFromBinding(update->srcBinding).start + update->srcArrayElement;
-    ////////auto dst_start_idx = p_layout_->GetGlobalIndexRangeFromBinding(update->dstBinding).start + update->dstArrayElement;
-    ////////// Update parameters all look good so perform update
-    ////////for (uint32_t di = 0; di < update->descriptorCount; ++di) {
-    ////////    auto src = src_set->descriptors_[src_start_idx + di].get();
-    ////////    auto dst = descriptors_[dst_start_idx + di].get();
-    ////////    if (src->updated) {
-    ////////        dst->CopyUpdate(src);
-    ////////        some_update_ = true;
-    ////////    } else {
-    ////////        dst->updated = false;
-    ////////    }
-    ////////}
-}
+//////////////// Perform write update in given update struct
+//////////////void cvdescriptorset::DescriptorSet::PerformWriteUpdate(const VkWriteDescriptorSet *update) {
+//////////////    //// Perform update on a per-binding basis as consecutive updates roll over to next binding
+//////////////    //auto descriptors_remaining = update->descriptorCount;
+//////////////    //auto binding_being_updated = update->dstBinding;
+//////////////    //auto offset = update->dstArrayElement;
+//////////////    //uint32_t update_index = 0;
+//////////////    //while (descriptors_remaining) {
+//////////////    //    uint32_t update_count = std::min(descriptors_remaining, GetDescriptorCountFromBinding(binding_being_updated));
+//////////////    //    auto global_idx = p_layout_->GetGlobalIndexRangeFromBinding(binding_being_updated).start + offset;
+//////////////    //    // Loop over the updates for a single binding at a time
+//////////////    //    for (uint32_t di = 0; di < update_count; ++di, ++update_index) {
+//////////////    //        descriptors_[global_idx + di]->WriteUpdate(update, update_index);
+//////////////    //    }
+//////////////    //    // Roll over to next binding in case of consecutive update
+//////////////    //    descriptors_remaining -= update_count;
+//////////////    //    offset = 0;
+//////////////    //    binding_being_updated++;
+//////////////    //}
+//////////////    ////////if (update->descriptorCount) some_update_ = true;
+//////////////}
+//////////////// Perform Copy update
+//////////////void cvdescriptorset::DescriptorSet::PerformCopyUpdate(const VkCopyDescriptorSet *update, const DescriptorSet *src_set) {
+//////////////    ////////auto src_start_idx = src_set->GetGlobalIndexRangeFromBinding(update->srcBinding).start + update->srcArrayElement;
+//////////////    ////////auto dst_start_idx = p_layout_->GetGlobalIndexRangeFromBinding(update->dstBinding).start + update->dstArrayElement;
+//////////////    ////////// Update parameters all look good so perform update
+//////////////    ////////for (uint32_t di = 0; di < update->descriptorCount; ++di) {
+//////////////    ////////    auto src = src_set->descriptors_[src_start_idx + di].get();
+//////////////    ////////    auto dst = descriptors_[dst_start_idx + di].get();
+//////////////    ////////    if (src->updated) {
+//////////////    ////////        dst->CopyUpdate(src);
+//////////////    ////////        some_update_ = true;
+//////////////    ////////    } else {
+//////////////    ////////        dst->updated = false;
+//////////////    ////////    }
+//////////////    ////////}
+//////////////}
 
 // Bind cb_node to this set and this set to cb_node.
 // Prereq: This should be called for a set that has been confirmed to be active for the given cb_node, meaning it's going
@@ -470,19 +483,19 @@ void cvdescriptorset::DescriptorSet::UpdateDrawState(CoreChecks *device_data, CM
 ////////    }
 ////////}
 
-cvdescriptorset::BufferDescriptor::BufferDescriptor(const VkDescriptorType type) {
-   ////// : storage_(false), dynamic_(false), buffer_(VK_NULL_HANDLE), offset_(0), range_(0) {
-    updated = false;
-    ////////descriptor_class = GeneralBuffer;
-    ////////if (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC == type) {
-    ////////    dynamic_ = true;
-    ////////} else if (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER == type) {
-    ////////    storage_ = true;
-    ////////} else if (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC == type) {
-    ////////    dynamic_ = true;
-    ////////    storage_ = true;
-    ////////}
-}
+//////////cvdescriptorset::BufferDescriptor::BufferDescriptor(const VkDescriptorType type) {
+//////////   ////// : storage_(false), dynamic_(false), buffer_(VK_NULL_HANDLE), offset_(0), range_(0) {
+//////////    updated = false;
+//////////    ////////descriptor_class = GeneralBuffer;
+//////////    ////////if (VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC == type) {
+//////////    ////////    dynamic_ = true;
+//////////    ////////} else if (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER == type) {
+//////////    ////////    storage_ = true;
+//////////    ////////} else if (VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC == type) {
+//////////    ////////    dynamic_ = true;
+//////////    ////////    storage_ = true;
+//////////    ////////}
+//////////}
 //////void cvdescriptorset::BufferDescriptor::WriteUpdate(const VkWriteDescriptorSet *update, const uint32_t index) {
 //////    ////////updated = true;
 //////    ////////const auto &buffer_info = update->pBufferInfo[index];
@@ -499,16 +512,16 @@ cvdescriptorset::BufferDescriptor::BufferDescriptor(const VkDescriptorType type)
 //////    ////////range_ = buff_desc->range_;
 //////}
 
-void cvdescriptorset::BufferDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
-
-void cvdescriptorset::BufferDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
-
-cvdescriptorset::TexelDescriptor::TexelDescriptor(const VkDescriptorType type) {
-    ///////////: buffer_view_(VK_NULL_HANDLE), storage_(false) {
-    updated = false;
-    //////descriptor_class = TexelBuffer;
-    //////////if (VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER == type) storage_ = true;
-}
+////////////void cvdescriptorset::BufferDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
+////////////
+////////////void cvdescriptorset::BufferDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
+////////////
+////////////cvdescriptorset::TexelDescriptor::TexelDescriptor(const VkDescriptorType type) {
+////////////    ///////////: buffer_view_(VK_NULL_HANDLE), storage_(false) {
+////////////    updated = false;
+////////////    //////descriptor_class = TexelBuffer;
+////////////    //////////if (VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER == type) storage_ = true;
+////////////}
 
 ////////void cvdescriptorset::TexelDescriptor::WriteUpdate(const VkWriteDescriptorSet *update, const uint32_t index) {
 ////////    ////////updated = true;
@@ -520,16 +533,16 @@ cvdescriptorset::TexelDescriptor::TexelDescriptor(const VkDescriptorType type) {
 ////////    ////////buffer_view_ = static_cast<const TexelDescriptor *>(src)->buffer_view_;
 ////////}
 
-void cvdescriptorset::TexelDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
-
-void cvdescriptorset::TexelDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
-
-cvdescriptorset::ImageDescriptor::ImageDescriptor(const VkDescriptorType type) {
-   ////////// : storage_(false), image_view_(VK_NULL_HANDLE), image_layout_(VK_IMAGE_LAYOUT_UNDEFINED) {
-    //////updated = false;
-    ////////descriptor_class = Image;
-   //////// if (VK_DESCRIPTOR_TYPE_STORAGE_IMAGE == type) storage_ = true;
-}
+//////////////void cvdescriptorset::TexelDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
+//////////////
+//////////////void cvdescriptorset::TexelDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
+//////////////
+//////////////cvdescriptorset::ImageDescriptor::ImageDescriptor(const VkDescriptorType type) {
+//////////////   ////////// : storage_(false), image_view_(VK_NULL_HANDLE), image_layout_(VK_IMAGE_LAYOUT_UNDEFINED) {
+//////////////    //////updated = false;
+//////////////    ////////descriptor_class = Image;
+//////////////   //////// if (VK_DESCRIPTOR_TYPE_STORAGE_IMAGE == type) storage_ = true;
+//////////////}
 
 ////////void cvdescriptorset::ImageDescriptor::WriteUpdate(const VkWriteDescriptorSet *update, const uint32_t index) {
 ////////    ////////updated = true;
@@ -546,9 +559,9 @@ cvdescriptorset::ImageDescriptor::ImageDescriptor(const VkDescriptorType type) {
 ////////    ////////image_layout_ = image_layout;
 ////////}
 
-void cvdescriptorset::ImageDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
-
-void cvdescriptorset::ImageDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
+//////////void cvdescriptorset::ImageDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
+//////////
+//////////void cvdescriptorset::ImageDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
 
 //////void cvdescriptorset::SamplerDescriptor::WriteUpdate(const VkWriteDescriptorSet *update, const uint32_t index) {
 //////    ////////if (!immutable_) {
@@ -565,11 +578,11 @@ void cvdescriptorset::ImageDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD
 //////    ////////updated = true;
 //////}
 
-void cvdescriptorset::SamplerDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
+void cvdescriptorset::Descriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
 
-void cvdescriptorset::SamplerDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
+void cvdescriptorset::Descriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
 
-cvdescriptorset::ImageSamplerDescriptor::ImageSamplerDescriptor(const VkSampler *immut) {
+cvdescriptorset::Descriptor::Descriptor() {
    ///////// : sampler_(VK_NULL_HANDLE), immutable_(false), image_view_(VK_NULL_HANDLE), image_layout_(VK_IMAGE_LAYOUT_UNDEFINED) {
     updated = false;
     //////descriptor_class = ImageSampler;
@@ -578,6 +591,21 @@ cvdescriptorset::ImageSamplerDescriptor::ImageSamplerDescriptor(const VkSampler 
     ////////////    immutable_ = true;
     ////////////}
 }
+
+
+////////////void cvdescriptorset::SamplerDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
+////////////
+////////////void cvdescriptorset::SamplerDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
+////////////
+////////////cvdescriptorset::ImageSamplerDescriptor::ImageSamplerDescriptor(const VkSampler *immut) {
+////////////   ///////// : sampler_(VK_NULL_HANDLE), immutable_(false), image_view_(VK_NULL_HANDLE), image_layout_(VK_IMAGE_LAYOUT_UNDEFINED) {
+////////////    updated = false;
+////////////    //////descriptor_class = ImageSampler;
+////////////    ////////////if (immut) {
+////////////    ////////////    sampler_ = *immut;
+////////////    ////////////    immutable_ = true;
+////////////    ////////////}
+////////////}
 
 ////////void cvdescriptorset::ImageSamplerDescriptor::WriteUpdate(const VkWriteDescriptorSet *update, const uint32_t index) {
 ////////    ////////updated = true;
@@ -600,43 +628,43 @@ cvdescriptorset::ImageSamplerDescriptor::ImageSamplerDescriptor(const VkSampler 
 ////////    //////////image_view_ = image_view;
 ////////    //////////image_layout_ = image_layout;
 ////////}
-
-void cvdescriptorset::ImageSamplerDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
-
-void cvdescriptorset::ImageSamplerDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
-
+//////////
+//////////void cvdescriptorset::ImageSamplerDescriptor::BindCommandBuffer(CMD_BUFFER_STATE *cb_node) {}
+//////////
+//////////void cvdescriptorset::ImageSamplerDescriptor::UpdateDrawState(CoreChecks *dev_data, CMD_BUFFER_STATE *cb_node) {}
+//////////
 // This is a helper function that iterates over a set of Write and Copy updates, pulls the DescriptorSet* for updated
 //  sets, and then calls their respective Perform[Write|Copy]Update functions.
-void cvdescriptorset::PerformUpdateDescriptorSets(CoreChecks *dev_data, uint32_t write_count, const VkWriteDescriptorSet *p_wds,
-                                                  uint32_t copy_count, const VkCopyDescriptorSet *p_cds) {
-    ////////////// Write updates first
-    ////////////uint32_t i = 0;
-    ////////////for (i = 0; i < write_count; ++i) {
-    ////////////    auto dest_set = p_wds[i].dstSet;
-    ////////////    auto set_node = dev_data->GetSetNode(dest_set);
-    ////////////    if (set_node) {
-    ////////////        set_node->PerformWriteUpdate(&p_wds[i]);
-    ////////////    }
-    ////////////}
-    ////////////// Now copy updates
-    ////////////for (i = 0; i < copy_count; ++i) {
-    ////////////    auto dst_set = p_cds[i].dstSet;
-    ////////////    auto src_set = p_cds[i].srcSet;
-    ////////////    auto src_node = dev_data->GetSetNode(src_set);
-    ////////////    auto dst_node = dev_data->GetSetNode(dst_set);
-    ////////////    if (src_node && dst_node) {
-    ////////////        dst_node->PerformCopyUpdate(&p_cds[i], src_node);
-    ////////////    }
-    ////////////}
-}
+////////////void cvdescriptorset::PerformUpdateDescriptorSets(CoreChecks *dev_data, uint32_t write_count, const VkWriteDescriptorSet *p_wds,
+////////////                                                  uint32_t copy_count, const VkCopyDescriptorSet *p_cds) {
+////////////    ////////////// Write updates first
+////////////    ////////////uint32_t i = 0;
+////////////    ////////////for (i = 0; i < write_count; ++i) {
+////////////    ////////////    auto dest_set = p_wds[i].dstSet;
+////////////    ////////////    auto set_node = dev_data->GetSetNode(dest_set);
+////////////    ////////////    if (set_node) {
+////////////    ////////////        set_node->PerformWriteUpdate(&p_wds[i]);
+////////////    ////////////    }
+////////////    ////////////}
+////////////    ////////////// Now copy updates
+////////////    ////////////for (i = 0; i < copy_count; ++i) {
+////////////    ////////////    auto dst_set = p_cds[i].dstSet;
+////////////    ////////////    auto src_set = p_cds[i].srcSet;
+////////////    ////////////    auto src_node = dev_data->GetSetNode(src_set);
+////////////    ////////////    auto dst_node = dev_data->GetSetNode(dst_set);
+////////////    ////////////    if (src_node && dst_node) {
+////////////    ////////////        dst_node->PerformCopyUpdate(&p_cds[i], src_node);
+////////////    ////////////    }
+////////////    ////////////}
+////////////}
 
-void CoreChecks::PerformUpdateDescriptorSetsWithTemplateKHR(VkDescriptorSet descriptorSet, const TEMPLATE_STATE *template_state,
-                                                            const void *pData) {
-    // Translate the templated update into a normal update for validation...
-    //////////////cvdescriptorset::DecodedTemplateUpdate decoded_update(this, descriptorSet, template_state, pData);
-    //////////////cvdescriptorset::PerformUpdateDescriptorSets(this, static_cast<uint32_t>(decoded_update.desc_writes.size()),
-    //////////////                                             decoded_update.desc_writes.data(), 0, NULL);
-}
+////////////void CoreChecks::PerformUpdateDescriptorSetsWithTemplateKHR(VkDescriptorSet descriptorSet, const TEMPLATE_STATE *template_state,
+////////////                                                            const void *pData) {
+////////////    // Translate the templated update into a normal update for validation...
+////////////    //////////////cvdescriptorset::DecodedTemplateUpdate decoded_update(this, descriptorSet, template_state, pData);
+////////////    //////////////cvdescriptorset::PerformUpdateDescriptorSets(this, static_cast<uint32_t>(decoded_update.desc_writes.size()),
+////////////    //////////////                                             decoded_update.desc_writes.data(), 0, NULL);
+////////////}
 
 // Update the common AllocateDescriptorSetsData
 void CoreChecks::UpdateAllocateDescriptorSetsData(const VkDescriptorSetAllocateInfo *p_alloc_info,

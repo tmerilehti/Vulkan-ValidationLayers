@@ -253,17 +253,21 @@ enum DescriptorClass { PlainSampler, ImageSampler, Image, TexelBuffer, GeneralBu
 
 class Descriptor {
    public:
+    Descriptor();
     virtual ~Descriptor(){};
     virtual void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) { updated = true; };
     virtual void CopyUpdate(const Descriptor *) { updated = true; };
     // Create binding between resources of this descriptor and given cb_node
-    virtual void BindCommandBuffer(CMD_BUFFER_STATE *) = 0;
-    virtual void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) = 0;
+    ////////////virtual void BindCommandBuffer(CMD_BUFFER_STATE *) = 0;
+    ////////////virtual void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) = 0;
+    void BindCommandBuffer(CMD_BUFFER_STATE *);
+    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *);
+
     ////////virtual DescriptorClass GetClass() const { return descriptor_class; };
     // Special fast-path check for SamplerDescriptors that are immutable
-    virtual bool IsImmutableSampler() const { return false; };
+    //////////virtual bool IsImmutableSampler() const { return false; };
     // Check for dynamic descriptor type
-    virtual bool IsDynamic() const { return false; };
+    ////////virtual bool IsDynamic() const { return false; };
     // Check for storage descriptor type
     //////virtual bool IsStorage() const { return false; };
     bool updated;  // Has descriptor been updated?
@@ -271,132 +275,132 @@ class Descriptor {
 };
 // Shared helper functions - These are useful because the shared sampler image descriptor type
 //  performs common functions with both sampler and image descriptors so they can share their common functions
-class SamplerDescriptor : public Descriptor {
-   public:
-    SamplerDescriptor(const VkSampler *);
-    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-    ////////void CopyUpdate(const Descriptor *) override;
-    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-    virtual bool IsImmutableSampler() const override { return immutable_; };
-    VkSampler GetSampler() const { return sampler_; }
+//////////////class SamplerDescriptor : public Descriptor {
+//////////////   public:
+//////////////    SamplerDescriptor(const VkSampler *);
+//////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
+//////////////    ////////void CopyUpdate(const Descriptor *) override;
+//////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
+//////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
+//////////////    virtual bool IsImmutableSampler() const override { return immutable_; };
+//////////////    VkSampler GetSampler() const { return sampler_; }
+//////////////
+//////////////   private:
+//////////////    VkSampler sampler_;
+//////////////    bool immutable_;
+//////////////};
 
-   private:
-    VkSampler sampler_;
-    bool immutable_;
-};
-
-class ImageSamplerDescriptor : public Descriptor {
-   public:
-    ImageSamplerDescriptor(const VkSampler *);
-    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-    ////////void CopyUpdate(const Descriptor *) override;
-    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-    ////////virtual bool IsImmutableSampler() const override { return immutable_; };
-    ////////VkSampler GetSampler() const { return sampler_; }
-    ////////VkImageView GetImageView() const { return image_view_; }
-    ////////VkImageLayout GetImageLayout() const { return image_layout_; }
-
-   private:
-    ////////////VkSampler sampler_;
-    ////////////bool immutable_;
-    ////////////VkImageView image_view_;
-    ////////////VkImageLayout image_layout_;
-};
-
-class ImageDescriptor : public Descriptor {
-   public:
-    ImageDescriptor(const VkDescriptorType);
-    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-    ////////void CopyUpdate(const Descriptor *) override;
-    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-    //////virtual bool IsStorage() const override { return storage_; }
-    ////////VkImageView GetImageView() const { return image_view_; }
-    ////////VkImageLayout GetImageLayout() const { return image_layout_; }
-
-   private:
-    ////////bool storage_;
-    ////////VkImageView image_view_;
-    ////////VkImageLayout image_layout_;
-};
-
-class TexelDescriptor : public Descriptor {
-   public:
-    TexelDescriptor(const VkDescriptorType);
-    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-    ////////void CopyUpdate(const Descriptor *) override;
-    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-    //////virtual bool IsStorage() const override { return storage_; }
-    ////////VkBufferView GetBufferView() const { return buffer_view_; }
-
-   private:
-    ////////VkBufferView buffer_view_;
-    ////////bool storage_;
-};
-
-class BufferDescriptor : public Descriptor {
-   public:
-    BufferDescriptor(const VkDescriptorType);
-    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-    ////////void CopyUpdate(const Descriptor *) override;
-    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-    ////////virtual bool IsDynamic() const override { return dynamic_; }
-    //////virtual bool IsStorage() const override { return storage_; }
-    ////////VkBuffer GetBuffer() const { return buffer_; }
-    ////////VkDeviceSize GetOffset() const { return offset_; }
-    ////////VkDeviceSize GetRange() const { return range_; }
-
-   private:
-    ////////bool storage_;
-    ////////bool dynamic_;
-    ////////VkBuffer buffer_;
-    ////////VkDeviceSize offset_;
-    ////////VkDeviceSize range_;
-};
-
-class InlineUniformDescriptor : public Descriptor {
-   public:
-    InlineUniformDescriptor(const VkDescriptorType) {
-        updated = false;
-        //////descriptor_class = InlineUniform;
-    }
-    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
-    ////////void CopyUpdate(const Descriptor *) override { updated = true; }
-    void BindCommandBuffer(CMD_BUFFER_STATE *){};
-    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
-};
-
-class AccelerationStructureDescriptor : public Descriptor {
-   public:
-    AccelerationStructureDescriptor(const VkDescriptorType) {
-        updated = false;
-        ////////descriptor_class = AccelerationStructure;
-    }
-    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
-    ////////void CopyUpdate(const Descriptor *) override { updated = true; }
-    void BindCommandBuffer(CMD_BUFFER_STATE *){};
-    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
-};
+////////////class ImageSamplerDescriptor : public Descriptor {
+////////////   public:
+////////////    ImageSamplerDescriptor(const VkSampler *);
+////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
+////////////    ////////void CopyUpdate(const Descriptor *) override;
+////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
+////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
+////////////    ////////virtual bool IsImmutableSampler() const override { return immutable_; };
+////////////    ////////VkSampler GetSampler() const { return sampler_; }
+////////////    ////////VkImageView GetImageView() const { return image_view_; }
+////////////    ////////VkImageLayout GetImageLayout() const { return image_layout_; }
+////////////
+////////////   private:
+////////////    ////////////VkSampler sampler_;
+////////////    ////////////bool immutable_;
+////////////    ////////////VkImageView image_view_;
+////////////    ////////////VkImageLayout image_layout_;
+////////////};
+////////////
+////////////class ImageDescriptor : public Descriptor {
+////////////   public:
+////////////    ImageDescriptor(const VkDescriptorType);
+////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
+////////////    ////////void CopyUpdate(const Descriptor *) override;
+////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
+////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
+////////////    //////virtual bool IsStorage() const override { return storage_; }
+////////////    ////////VkImageView GetImageView() const { return image_view_; }
+////////////    ////////VkImageLayout GetImageLayout() const { return image_layout_; }
+////////////
+////////////   private:
+////////////    ////////bool storage_;
+////////////    ////////VkImageView image_view_;
+////////////    ////////VkImageLayout image_layout_;
+////////////};
+////////////
+////////////class TexelDescriptor : public Descriptor {
+////////////   public:
+////////////    TexelDescriptor(const VkDescriptorType);
+////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
+////////////    ////////void CopyUpdate(const Descriptor *) override;
+////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
+////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
+////////////    //////virtual bool IsStorage() const override { return storage_; }
+////////////    ////////VkBufferView GetBufferView() const { return buffer_view_; }
+////////////
+////////////   private:
+////////////    ////////VkBufferView buffer_view_;
+////////////    ////////bool storage_;
+////////////};
+////////////
+////////////class BufferDescriptor : public Descriptor {
+////////////   public:
+////////////    BufferDescriptor(const VkDescriptorType);
+////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
+////////////    ////////void CopyUpdate(const Descriptor *) override;
+////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
+////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
+////////////    ////////virtual bool IsDynamic() const override { return dynamic_; }
+////////////    //////virtual bool IsStorage() const override { return storage_; }
+////////////    ////////VkBuffer GetBuffer() const { return buffer_; }
+////////////    ////////VkDeviceSize GetOffset() const { return offset_; }
+////////////    ////////VkDeviceSize GetRange() const { return range_; }
+////////////
+////////////   private:
+////////////    ////////bool storage_;
+////////////    ////////bool dynamic_;
+////////////    ////////VkBuffer buffer_;
+////////////    ////////VkDeviceSize offset_;
+////////////    ////////VkDeviceSize range_;
+////////////};
+////////////
+////////////class InlineUniformDescriptor : public Descriptor {
+////////////   public:
+////////////    InlineUniformDescriptor(const VkDescriptorType) {
+////////////        updated = false;
+////////////        //////descriptor_class = InlineUniform;
+////////////    }
+////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
+////////////    ////////void CopyUpdate(const Descriptor *) override { updated = true; }
+////////////    void BindCommandBuffer(CMD_BUFFER_STATE *){};
+////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
+////////////};
+////////////
+////////////class AccelerationStructureDescriptor : public Descriptor {
+////////////   public:
+////////////    AccelerationStructureDescriptor(const VkDescriptorType) {
+////////////        updated = false;
+////////////        ////////descriptor_class = AccelerationStructure;
+////////////    }
+////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
+////////////    ////////void CopyUpdate(const Descriptor *) override { updated = true; }
+////////////    void BindCommandBuffer(CMD_BUFFER_STATE *){};
+////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
+////////////};
 
 struct AllocateDescriptorSetsData {
     std::map<uint32_t, uint32_t> required_descriptors_by_type;
     std::vector<std::shared_ptr<DescriptorSetLayout const>> layout_nodes;
     AllocateDescriptorSetsData(uint32_t);
 };
-// Helper functions for descriptor set functions that cross multiple sets
-void PerformUpdateDescriptorSets(CoreChecks *, uint32_t, const VkWriteDescriptorSet *, uint32_t, const VkCopyDescriptorSet *);
+////////////// Helper functions for descriptor set functions that cross multiple sets
+////////////void PerformUpdateDescriptorSets(CoreChecks *, uint32_t, const VkWriteDescriptorSet *, uint32_t, const VkCopyDescriptorSet *);
 
-// Helper class to encapsulate the descriptor update template decoding logic
-struct DecodedTemplateUpdate {
-    std::vector<VkWriteDescriptorSet> desc_writes;
-    std::vector<VkWriteDescriptorSetInlineUniformBlockEXT> inline_infos;
-    DecodedTemplateUpdate(CoreChecks *device_data, VkDescriptorSet descriptorSet, const TEMPLATE_STATE *template_state,
-                          const void *pData, VkDescriptorSetLayout push_layout = VK_NULL_HANDLE);
-};
+//////// Helper class to encapsulate the descriptor update template decoding logic
+//////struct DecodedTemplateUpdate {
+//////    std::vector<VkWriteDescriptorSet> desc_writes;
+//////    std::vector<VkWriteDescriptorSetInlineUniformBlockEXT> inline_infos;
+//////    DecodedTemplateUpdate(CoreChecks *device_data, VkDescriptorSet descriptorSet, const TEMPLATE_STATE *template_state,
+//////                          const void *pData, VkDescriptorSetLayout push_layout = VK_NULL_HANDLE);
+//////};
 
 /*
  * DescriptorSet class
@@ -435,10 +439,10 @@ class DescriptorSet : public BASE_NODE {
     bool HasBinding(const uint32_t binding) const { return p_layout_->HasBinding(binding); };
     // Perform a push update whose contents were just validated using ValidatePushDescriptorsUpdate
     void PerformPushDescriptorsUpdate(uint32_t write_count, const VkWriteDescriptorSet *p_wds);
-    // Perform a WriteUpdate whose contents were just validated using ValidateWriteUpdate
-    void PerformWriteUpdate(const VkWriteDescriptorSet *);
-    // Perform a CopyUpdate whose contents were just validated using ValidateCopyUpdate
-    void PerformCopyUpdate(const VkCopyDescriptorSet *, const DescriptorSet *);
+    ////////////// Perform a WriteUpdate whose contents were just validated using ValidateWriteUpdate
+    ////////////void PerformWriteUpdate(const VkWriteDescriptorSet *);
+    ////////////// Perform a CopyUpdate whose contents were just validated using ValidateCopyUpdate
+    ////////////void PerformCopyUpdate(const VkCopyDescriptorSet *, const DescriptorSet *);
 
     const std::shared_ptr<DescriptorSetLayout const> GetLayout() const { return p_layout_; };
     VkDescriptorSet GetSet() const { return set_; };
@@ -475,7 +479,7 @@ class DescriptorSet : public BASE_NODE {
     const Descriptor *GetDescriptorFromGlobalIndex(const uint32_t index) const { return descriptors_[index].get(); }
 
    private:
-    bool some_update_;  // has any part of the set ever been updated?
+    ////////bool some_update_;  // has any part of the set ever been updated?
     VkDescriptorSet set_;
     DESCRIPTOR_POOL_STATE *pool_state_;
     const std::shared_ptr<DescriptorSetLayout const> p_layout_;
