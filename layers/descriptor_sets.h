@@ -48,42 +48,8 @@ struct IndexRange {
     uint32_t end;
 };
 
-/*
- * DescriptorSetLayoutDef/DescriptorSetLayout classes
- *
- * Overview - These two classes encapsulate the Vulkan VkDescriptorSetLayout data (layout).
- *   A layout consists of some number of bindings, each of which has a binding#, a
- *   type, descriptor count, stage flags, and pImmutableSamplers.
+// DescriptorSetLayoutDef/DescriptorSetLayout classes
 
- *   The DescriptorSetLayoutDef represents a canonicalization of the input data and contains
- *   neither per handle or per device state.  It is possible for different handles on
- *   different devices to share a common def.  This is used and useful for quick compatibiltiy
- *   validation.  The DescriptorSetLayout refers to a DescriptorSetLayoutDef and contains
- *   all per handle state.
- *
- * Index vs Binding - A layout is created with an array of VkDescriptorSetLayoutBinding
- *  where each array index will have a corresponding binding# that is defined in that struct.
- *  The binding#, then, is decoupled from VkDescriptorSetLayoutBinding index, which allows
- *  bindings to be defined out-of-order. This DescriptorSetLayout class, however, stores
- *  the bindings internally in-order. This is useful for operations which may "roll over"
- *  from a single binding to the next consecutive binding.
- *
- *  Note that although the bindings are stored in-order, there still may be "gaps" in the
- *  binding#. For example, if the binding creation order is 8, 7, 10, 3, 4, then the
- *  internal binding array will have five entries stored in binding order 3, 4, 7, 8, 10.
- *  To process all of the bindings in a layout you can iterate from 0 to GetBindingCount()
- *  and use the Get*FromIndex() functions for each index. To just process a single binding,
- *  use the Get*FromBinding() functions.
- *
- * Global Index - The binding vector index has as many indices as there are bindings.
- *  This class also has the concept of a Global Index. For the global index functions,
- *  there are as many global indices as there are descriptors in the layout.
- *  For the global index, consider all of the bindings to be a flat array where
- *  descriptor 0 of of the lowest binding# is index 0 and each descriptor in the layout
- *  increments from there. So if the lowest binding# in this example had descriptorCount of
- *  10, then the GlobalStartIndex of the 2nd lowest binding# will be 10 where 0-9 are the
- *  global indices for the lowest binding#.
- */
 class DescriptorSetLayoutDef {
    public:
     // Constructors and destructor
@@ -100,8 +66,8 @@ class DescriptorSetLayoutDef {
     // Return true if given binding is present in this layout
     bool HasBinding(const uint32_t binding) const { return binding_to_index_map_.count(binding) > 0; };
     uint32_t GetIndexFromBinding(uint32_t binding) const;
-    // Various Get functions that can either be passed a binding#, which will
-    //  be automatically translated into the appropriate index, or the index# can be passed in directly
+    // Various Get functions that can either be passed a binding#, which will be automatically translated into the appropriate
+    // index, or the index# can be passed in directly
     uint32_t GetMaxBinding() const { return bindings_[bindings_.size() - 1].binding; }
     VkDescriptorSetLayoutBinding const *GetDescriptorSetLayoutBindingPtrFromIndex(const uint32_t) const;
     VkDescriptorSetLayoutBinding const *GetDescriptorSetLayoutBindingPtrFromBinding(uint32_t binding) const {
@@ -189,8 +155,8 @@ class DescriptorSetLayout {
     uint32_t GetBindingCount() const { return layout_id_->GetBindingCount(); };
     VkDescriptorSetLayoutCreateFlags GetCreateFlags() const { return layout_id_->GetCreateFlags(); }
     uint32_t GetIndexFromBinding(uint32_t binding) const { return layout_id_->GetIndexFromBinding(binding); }
-    // Various Get functions that can either be passed a binding#, which will
-    //  be automatically translated into the appropriate index, or the index# can be passed in directly
+    // Various Get functions that can either be passed a binding#, which will be automatically translated into the appropriate
+    // index, or the index# can be passed in directly
     uint32_t GetMaxBinding() const { return layout_id_->GetMaxBinding(); }
     VkDescriptorSetLayoutBinding const *GetDescriptorSetLayoutBindingPtrFromIndex(const uint32_t index) const {
         return layout_id_->GetDescriptorSetLayoutBindingPtrFromIndex(index);
@@ -241,13 +207,6 @@ class DescriptorSetLayout {
     DescriptorSetLayoutId layout_id_;
 };
 
-/*
- * Descriptor classes
- *  Descriptor is an abstract base class from which 5 separate descriptor types are derived.
- *   This allows the WriteUpdate() and CopyUpdate() operations to be specialized per
- *   descriptor type, but all descriptors in a set can be accessed via the common Descriptor*.
- */
-
 // Slightly broader than type, each c++ "class" will has a corresponding "DescriptorClass"
 enum DescriptorClass { PlainSampler, ImageSampler, Image, TexelBuffer, GeneralBuffer, InlineUniform, AccelerationStructure };
 
@@ -257,165 +216,25 @@ class Descriptor {
     virtual ~Descriptor(){};
     virtual void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) { updated = true; };
     virtual void CopyUpdate(const Descriptor *) { updated = true; };
-    // Create binding between resources of this descriptor and given cb_node
-    ////////////virtual void BindCommandBuffer(CMD_BUFFER_STATE *) = 0;
-    ////////////virtual void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) = 0;
     void BindCommandBuffer(CMD_BUFFER_STATE *);
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *);
-
-    ////////virtual DescriptorClass GetClass() const { return descriptor_class; };
-    // Special fast-path check for SamplerDescriptors that are immutable
-    //////////virtual bool IsImmutableSampler() const { return false; };
-    // Check for dynamic descriptor type
-    ////////virtual bool IsDynamic() const { return false; };
-    // Check for storage descriptor type
-    //////virtual bool IsStorage() const { return false; };
     bool updated;  // Has descriptor been updated?
-    ////////DescriptorClass descriptor_class;
 };
-// Shared helper functions - These are useful because the shared sampler image descriptor type
-//  performs common functions with both sampler and image descriptors so they can share their common functions
-//////////////class SamplerDescriptor : public Descriptor {
-//////////////   public:
-//////////////    SamplerDescriptor(const VkSampler *);
-//////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-//////////////    ////////void CopyUpdate(const Descriptor *) override;
-//////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-//////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-//////////////    virtual bool IsImmutableSampler() const override { return immutable_; };
-//////////////    VkSampler GetSampler() const { return sampler_; }
-//////////////
-//////////////   private:
-//////////////    VkSampler sampler_;
-//////////////    bool immutable_;
-//////////////};
-
-////////////class ImageSamplerDescriptor : public Descriptor {
-////////////   public:
-////////////    ImageSamplerDescriptor(const VkSampler *);
-////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-////////////    ////////void CopyUpdate(const Descriptor *) override;
-////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-////////////    ////////virtual bool IsImmutableSampler() const override { return immutable_; };
-////////////    ////////VkSampler GetSampler() const { return sampler_; }
-////////////    ////////VkImageView GetImageView() const { return image_view_; }
-////////////    ////////VkImageLayout GetImageLayout() const { return image_layout_; }
-////////////
-////////////   private:
-////////////    ////////////VkSampler sampler_;
-////////////    ////////////bool immutable_;
-////////////    ////////////VkImageView image_view_;
-////////////    ////////////VkImageLayout image_layout_;
-////////////};
-////////////
-////////////class ImageDescriptor : public Descriptor {
-////////////   public:
-////////////    ImageDescriptor(const VkDescriptorType);
-////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-////////////    ////////void CopyUpdate(const Descriptor *) override;
-////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-////////////    //////virtual bool IsStorage() const override { return storage_; }
-////////////    ////////VkImageView GetImageView() const { return image_view_; }
-////////////    ////////VkImageLayout GetImageLayout() const { return image_layout_; }
-////////////
-////////////   private:
-////////////    ////////bool storage_;
-////////////    ////////VkImageView image_view_;
-////////////    ////////VkImageLayout image_layout_;
-////////////};
-////////////
-////////////class TexelDescriptor : public Descriptor {
-////////////   public:
-////////////    TexelDescriptor(const VkDescriptorType);
-////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-////////////    ////////void CopyUpdate(const Descriptor *) override;
-////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-////////////    //////virtual bool IsStorage() const override { return storage_; }
-////////////    ////////VkBufferView GetBufferView() const { return buffer_view_; }
-////////////
-////////////   private:
-////////////    ////////VkBufferView buffer_view_;
-////////////    ////////bool storage_;
-////////////};
-////////////
-////////////class BufferDescriptor : public Descriptor {
-////////////   public:
-////////////    BufferDescriptor(const VkDescriptorType);
-////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
-////////////    ////////void CopyUpdate(const Descriptor *) override;
-////////////    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
-////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
-////////////    ////////virtual bool IsDynamic() const override { return dynamic_; }
-////////////    //////virtual bool IsStorage() const override { return storage_; }
-////////////    ////////VkBuffer GetBuffer() const { return buffer_; }
-////////////    ////////VkDeviceSize GetOffset() const { return offset_; }
-////////////    ////////VkDeviceSize GetRange() const { return range_; }
-////////////
-////////////   private:
-////////////    ////////bool storage_;
-////////////    ////////bool dynamic_;
-////////////    ////////VkBuffer buffer_;
-////////////    ////////VkDeviceSize offset_;
-////////////    ////////VkDeviceSize range_;
-////////////};
-////////////
-////////////class InlineUniformDescriptor : public Descriptor {
-////////////   public:
-////////////    InlineUniformDescriptor(const VkDescriptorType) {
-////////////        updated = false;
-////////////        //////descriptor_class = InlineUniform;
-////////////    }
-////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
-////////////    ////////void CopyUpdate(const Descriptor *) override { updated = true; }
-////////////    void BindCommandBuffer(CMD_BUFFER_STATE *){};
-////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
-////////////};
-////////////
-////////////class AccelerationStructureDescriptor : public Descriptor {
-////////////   public:
-////////////    AccelerationStructureDescriptor(const VkDescriptorType) {
-////////////        updated = false;
-////////////        ////////descriptor_class = AccelerationStructure;
-////////////    }
-////////////    ////////void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
-////////////    ////////void CopyUpdate(const Descriptor *) override { updated = true; }
-////////////    void BindCommandBuffer(CMD_BUFFER_STATE *){};
-////////////    void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
-////////////};
 
 struct AllocateDescriptorSetsData {
     std::map<uint32_t, uint32_t> required_descriptors_by_type;
     std::vector<std::shared_ptr<DescriptorSetLayout const>> layout_nodes;
     AllocateDescriptorSetsData(uint32_t);
 };
-////////////// Helper functions for descriptor set functions that cross multiple sets
-////////////void PerformUpdateDescriptorSets(CoreChecks *, uint32_t, const VkWriteDescriptorSet *, uint32_t, const VkCopyDescriptorSet *);
 
-//////// Helper class to encapsulate the descriptor update template decoding logic
-//////struct DecodedTemplateUpdate {
-//////    std::vector<VkWriteDescriptorSet> desc_writes;
-//////    std::vector<VkWriteDescriptorSetInlineUniformBlockEXT> inline_infos;
-//////    DecodedTemplateUpdate(CoreChecks *device_data, VkDescriptorSet descriptorSet, const TEMPLATE_STATE *template_state,
-//////                          const void *pData, VkDescriptorSetLayout push_layout = VK_NULL_HANDLE);
-//////};
-
-/*
- * DescriptorSet class
- *
- * Overview - This class encapsulates the Vulkan VkDescriptorSet data (set).
- *   A set has an underlying layout which defines the bindings in the set and the
- *   types and numbers of descriptors in each descriptor slot. Most of the layout
- *   interfaces are exposed through identically-named functions in the set class.
- *   Please refer to the DescriptorSetLayout comment above for a description of
- *   index, binding, and global index.
- *
- * At construction a vector of Descriptor* is created with types corresponding to the
- *   layout. The primary operation performed on the descriptors is to update them
- *   via write or copy updates.
- */
+// DescriptorSet class
+//
+// Overview - This class encapsulates the Vulkan VkDescriptorSet data (set).
+//  A set has an underlying layout which defines the bindings in the set and the types and numbers of descriptors in each descriptor
+//  slot. Most of the layout interfaces are exposed through identically-named functions in the set class. Please refer to the
+//  DescriptorSetLayout comment above for a description of index, binding, and global index.
+// At construction a vector of Descriptor* is created with types corresponding to the layout. The primary operation performed on the
+// descriptors is to update them via write or copy updates.
 class DescriptorSet : public BASE_NODE {
    public:
     DescriptorSet(const VkDescriptorSet, const VkDescriptorPool, const std::shared_ptr<DescriptorSetLayout const> &,
@@ -437,19 +256,12 @@ class DescriptorSet : public BASE_NODE {
     }
     // Return true if given binding is present in this set
     bool HasBinding(const uint32_t binding) const { return p_layout_->HasBinding(binding); };
-    // Perform a push update whose contents were just validated using ValidatePushDescriptorsUpdate
-    void PerformPushDescriptorsUpdate(uint32_t write_count, const VkWriteDescriptorSet *p_wds);
-    ////////////// Perform a WriteUpdate whose contents were just validated using ValidateWriteUpdate
-    ////////////void PerformWriteUpdate(const VkWriteDescriptorSet *);
-    ////////////// Perform a CopyUpdate whose contents were just validated using ValidateCopyUpdate
-    ////////////void PerformCopyUpdate(const VkCopyDescriptorSet *, const DescriptorSet *);
 
     const std::shared_ptr<DescriptorSetLayout const> GetLayout() const { return p_layout_; };
     VkDescriptorSet GetSet() const { return set_; };
     // Return unordered_set of all command buffers that this set is bound to
     std::unordered_set<CMD_BUFFER_STATE *> GetBoundCmdBuffers() const { return cb_bindings; }
-    // Bind given cmd_buffer to this descriptor set and
-    // update CB image layout map with image/imagesampler descriptor image layouts
+    // Bind given cmd_buffer to this descriptor set and  update CB image layout map with image/imagesampler descriptor image layouts
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *, const std::map<uint32_t, descriptor_req> &);
     void BindCommandBuffer(CMD_BUFFER_STATE *, const std::map<uint32_t, descriptor_req> &);
 
@@ -479,7 +291,6 @@ class DescriptorSet : public BASE_NODE {
     const Descriptor *GetDescriptorFromGlobalIndex(const uint32_t index) const { return descriptors_[index].get(); }
 
    private:
-    ////////bool some_update_;  // has any part of the set ever been updated?
     VkDescriptorSet set_;
     DESCRIPTOR_POOL_STATE *pool_state_;
     const std::shared_ptr<DescriptorSetLayout const> p_layout_;

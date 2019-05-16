@@ -585,13 +585,6 @@ void CoreChecks::PostCallRecordAllocateDescriptorSets(VkDevice device, const VkD
     PerformAllocateDescriptorSets(pAllocateInfo, pDescriptorSets, ads_state);
 }
 
-////////////void CoreChecks::PreCallRecordUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
-////////////                                                   const VkWriteDescriptorSet *pDescriptorWrites, uint32_t descriptorCopyCount,
-////////////                                                   const VkCopyDescriptorSet *pDescriptorCopies) {
-////////////    cvdescriptorset::PerformUpdateDescriptorSets(this, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount,
-////////////                                                 pDescriptorCopies);
-////////////}
-
 void CoreChecks::PostCallRecordAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo *pCreateInfo,
                                                       VkCommandBuffer *pCommandBuffer, VkResult result) {
     if (VK_SUCCESS != result) return;
@@ -757,9 +750,6 @@ void CoreChecks::RecordCmdPushDescriptorSetState(CMD_BUFFER_STATE *cb_state, VkP
     std::vector<cvdescriptorset::DescriptorSet *> descriptor_sets = {push_descriptor_set.get()};
     UpdateLastBoundDescriptorSets(cb_state, pipelineBindPoint, pipeline_layout, set, 1, descriptor_sets, 0, nullptr);
     last_bound.pipeline_layout = layout;
-
-    // Now that we have either the new or extant push_descriptor set ... do the write updates against it
-    push_descriptor_set->PerformPushDescriptorsUpdate(descriptorWriteCount, pDescriptorWrites);
 }
 
 // Generic function to handle state update for all CmdDraw* and CmdDispatch* type functions

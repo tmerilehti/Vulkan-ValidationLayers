@@ -235,8 +235,6 @@ class CoreChecks : public ValidationObject {
                                                 VkPhysicalDevice* pPhysicalDevices, VkResult result);
 
     // Descriptor Set Validation Functions
-    ////////////void PerformUpdateDescriptorSetsWithTemplateKHR(VkDescriptorSet descriptorSet, const TEMPLATE_STATE* template_state,
-    ////////////                                                const void* pData);
     void UpdateAllocateDescriptorSetsData(const VkDescriptorSetAllocateInfo*, cvdescriptorset::AllocateDescriptorSetsData*);
     void PerformAllocateDescriptorSets(const VkDescriptorSetAllocateInfo*, const VkDescriptorSet*,
                                        const cvdescriptorset::AllocateDescriptorSetsData*);
@@ -328,9 +326,6 @@ class CoreChecks : public ValidationObject {
     void PostCallRecordCreateDescriptorSetLayout(VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo,
                                                  const VkAllocationCallbacks* pAllocator, VkDescriptorSetLayout* pSetLayout,
                                                  VkResult result);
-    //////////void PreCallRecordUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
-    //////////                                       const VkWriteDescriptorSet* pDescriptorWrites, uint32_t descriptorCopyCount,
-    //////////                                       const VkCopyDescriptorSet* pDescriptorCopies);
     void PostCallRecordAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo* pCreateInfo,
                                               VkCommandBuffer* pCommandBuffer, VkResult result);
     void PostCallRecordResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags flags, VkResult result);
