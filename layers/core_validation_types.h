@@ -322,8 +322,6 @@ struct CMD_BUFFER_STATE : public BASE_NODE {
     VkCommandBuffer commandBuffer;
     VkDevice device;
     bool hasDrawCmd;
-    typedef uint64_t ImageLayoutUpdateCount;
-                                                       // rather than dynamic state
     // Currently storing "lastBound" objects on per-CB basis
     //  long-term may want to create caches of "lastBound" states and could have
     //  each individual CMD_NODE referencing its own "lastBound" state

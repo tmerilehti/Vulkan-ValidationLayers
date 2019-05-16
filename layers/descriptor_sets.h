@@ -47,7 +47,6 @@ struct IndexRange {
     uint32_t start;
     uint32_t end;
 };
-typedef std::map<uint32_t, descriptor_req> BindingReqMap;
 
 /*
  * DescriptorSetLayoutDef/DescriptorSetLayout classes
@@ -155,13 +154,6 @@ class DescriptorSetLayoutDef {
     //////////bool VerifyUpdateConsistency(uint32_t, uint32_t, uint32_t, const char *, const VkDescriptorSet, std::string *) const;
     bool IsPushDescriptor() const { return GetCreateFlags() & VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR; };
 
-    struct BindingTypeStats {
-        uint32_t dynamic_buffer_count;
-        uint32_t non_dynamic_buffer_count;
-        uint32_t image_sampler_count;
-    };
-    const BindingTypeStats &GetBindingTypeStats() const { return binding_type_stats_; }
-
    private:
     // Only the first three data members are used for hash and equality checks, the other members are derived from them, and are
     // used to speed up the various lookups/queries/validations
@@ -181,7 +173,6 @@ class DescriptorSetLayoutDef {
     uint32_t binding_count_;     // # of bindings in this layout
     uint32_t descriptor_count_;  // total # descriptors in this layout
     uint32_t dynamic_descriptor_count_;
-    BindingTypeStats binding_type_stats_;
 };
 
 static inline bool operator==(const DescriptorSetLayoutDef &lhs, const DescriptorSetLayoutDef &rhs) {
@@ -277,9 +268,6 @@ class DescriptorSetLayout {
     //////////}
     bool IsPushDescriptor() const { return layout_id_->IsPushDescriptor(); }
 
-    using BindingTypeStats = DescriptorSetLayoutDef::BindingTypeStats;
-    const BindingTypeStats &GetBindingTypeStats() const { return layout_id_->GetBindingTypeStats(); }
-
    private:
     VkDescriptorSetLayout layout_;
     bool layout_destroyed_;
@@ -302,6 +290,7 @@ class Descriptor {
     virtual void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) = 0;
     virtual void CopyUpdate(const Descriptor *) = 0;
     // Create binding between resources of this descriptor and given cb_node
+    virtual void BindCommandBuffer(CMD_BUFFER_STATE *) = 0;
     virtual void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) = 0;
     virtual DescriptorClass GetClass() const { return descriptor_class; };
     // Special fast-path check for SamplerDescriptors that are immutable
@@ -324,6 +313,7 @@ class SamplerDescriptor : public Descriptor {
     SamplerDescriptor(const VkSampler *);
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
     void CopyUpdate(const Descriptor *) override;
+    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
     virtual bool IsImmutableSampler() const override { return immutable_; };
     VkSampler GetSampler() const { return sampler_; }
@@ -339,6 +329,7 @@ class ImageSamplerDescriptor : public Descriptor {
     ImageSamplerDescriptor(const VkSampler *);
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
     void CopyUpdate(const Descriptor *) override;
+    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
     virtual bool IsImmutableSampler() const override { return immutable_; };
     VkSampler GetSampler() const { return sampler_; }
@@ -357,6 +348,7 @@ class ImageDescriptor : public Descriptor {
     ImageDescriptor(const VkDescriptorType);
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
     void CopyUpdate(const Descriptor *) override;
+    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
     virtual bool IsStorage() const override { return storage_; }
     VkImageView GetImageView() const { return image_view_; }
@@ -373,6 +365,7 @@ class TexelDescriptor : public Descriptor {
     TexelDescriptor(const VkDescriptorType);
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
     void CopyUpdate(const Descriptor *) override;
+    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
     virtual bool IsStorage() const override { return storage_; }
     VkBufferView GetBufferView() const { return buffer_view_; }
@@ -387,6 +380,7 @@ class BufferDescriptor : public Descriptor {
     BufferDescriptor(const VkDescriptorType);
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override;
     void CopyUpdate(const Descriptor *) override;
+    void BindCommandBuffer(CMD_BUFFER_STATE *) override;
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override;
     virtual bool IsDynamic() const override { return dynamic_; }
     virtual bool IsStorage() const override { return storage_; }
@@ -410,6 +404,7 @@ class InlineUniformDescriptor : public Descriptor {
     }
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
     void CopyUpdate(const Descriptor *) override { updated = true; }
+    void BindCommandBuffer(CMD_BUFFER_STATE *) {};
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
 };
 
@@ -421,6 +416,7 @@ class AccelerationStructureDescriptor : public Descriptor {
     }
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
     void CopyUpdate(const Descriptor *) override { updated = true; }
+    void BindCommandBuffer(CMD_BUFFER_STATE *) {};
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
 };
 
@@ -519,28 +515,10 @@ class DescriptorSet : public BASE_NODE {
     // Bind given cmd_buffer to this descriptor set and
     // update CB image layout map with image/imagesampler descriptor image layouts
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *, const std::map<uint32_t, descriptor_req> &);
+    void BindCommandBuffer(CMD_BUFFER_STATE *, const std::map<uint32_t, descriptor_req> &);
 
-    // Track work that has been bound or validated to avoid duplicate work, important when large descriptor arrays
-    // are present
-    typedef std::unordered_set<uint32_t> TrackedBindings;
-    static void FilterAndTrackOneBindingReq(const BindingReqMap::value_type &binding_req_pair, const BindingReqMap &in_req,
-                                            BindingReqMap *out_req, TrackedBindings *set);
-    static void FilterAndTrackOneBindingReq(const BindingReqMap::value_type &binding_req_pair, const BindingReqMap &in_req,
-                                            BindingReqMap *out_req, TrackedBindings *set, uint32_t limit);
-    void FilterAndTrackBindingReqs(CMD_BUFFER_STATE *, const BindingReqMap &in_req, BindingReqMap *out_req);
-    void FilterAndTrackBindingReqs(CMD_BUFFER_STATE *, PIPELINE_STATE *, const BindingReqMap &in_req, BindingReqMap *out_req);
-    void ClearCachedDynamicDescriptorValidation(CMD_BUFFER_STATE *cb_state) {
-        cached_validation_[cb_state].dynamic_buffers.clear();
-    }
-    void ClearCachedValidation(CMD_BUFFER_STATE *cb_state) { cached_validation_.erase(cb_state); }
     // If given cmd_buffer is in the cb_bindings set, remove it
-    void RemoveBoundCommandBuffer(CMD_BUFFER_STATE *cb_node) {
-        cb_bindings.erase(cb_node);
-        ClearCachedValidation(cb_node);
-    }
-    //////////VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t index) const {
-    //////////    return p_layout_->GetImmutableSamplerPtrFromBinding(index);
-    //////////};
+    void RemoveBoundCommandBuffer(CMD_BUFFER_STATE *cb_node) { cb_bindings.erase(cb_node); }
     // For a particular binding, get the global index
     const IndexRange GetGlobalIndexRangeFromBinding(const uint32_t binding, bool actual_length = false) const {
         if (actual_length && binding == p_layout_->GetMaxBinding() && IsVariableDescriptorCount(binding)) {
@@ -574,35 +552,6 @@ class DescriptorSet : public BASE_NODE {
     CoreChecks *device_data_;
     const VkPhysicalDeviceLimits limits_;
     uint32_t variable_count_;
-
-    // Cached binding and validation support:
-    //
-    // For the lifespan of a given command buffer recording, do lazy evaluation, caching, and dirtying of
-    // expensive validation operation (typically per-draw)
-    typedef std::unordered_map<CMD_BUFFER_STATE *, TrackedBindings> TrackedBindingMap;
-    typedef std::unordered_map<PIPELINE_STATE *, TrackedBindingMap> ValidatedBindings;
-    // Track the validation caching of bindings vs. the command buffer and draw state
-    typedef std::unordered_map<uint32_t, CMD_BUFFER_STATE::ImageLayoutUpdateCount> VersionedBindings;
-    struct CachedValidation {
-        TrackedBindings command_binding_and_usage;                               // Persistent for the life of the recording
-        TrackedBindings non_dynamic_buffers;                                     // Persistent for the life of the recording
-        TrackedBindings dynamic_buffers;                                         // Dirtied (flushed) each BindDescriptorSet
-        std::unordered_map<PIPELINE_STATE *, VersionedBindings> image_samplers;  // Tested vs. changes to CB's ImageLayout
-    };
-    typedef std::unordered_map<CMD_BUFFER_STATE *, CachedValidation> CachedValidationMap;
-    // Image and ImageView bindings are validated per pipeline and not invalidate by repeated binding
-    CachedValidationMap cached_validation_;
-};
-// For the "bindless" style resource usage with many descriptors, need to optimize binding and validation
-class PrefilterBindRequestMap {
-   public:
-    static const uint32_t kManyDescriptors_ = 64;  // TODO base this number on measured data
-    std::unique_ptr<BindingReqMap> filtered_map_;
-    const BindingReqMap &orig_map_;
-
-    PrefilterBindRequestMap(DescriptorSet &ds, const BindingReqMap &in_map, CMD_BUFFER_STATE *cb_state);
-    PrefilterBindRequestMap(DescriptorSet &ds, const BindingReqMap &in_map, CMD_BUFFER_STATE *cb_state, PIPELINE_STATE *);
-    const BindingReqMap &Map() const { return (filtered_map_) ? *filtered_map_ : orig_map_; }
 };
 }  // namespace cvdescriptorset
 #endif  // CORE_VALIDATION_DESCRIPTOR_SETS_H_

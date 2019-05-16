@@ -426,12 +426,13 @@ void CoreChecks::UpdateDrawState(CMD_BUFFER_STATE *cb_state, const VkPipelineBin
             // Pull the set node
             cvdescriptorset::DescriptorSet *descriptor_set = state.boundDescriptorSets[setIndex];
             if (!descriptor_set->IsPushDescriptor()) {
-                // For the "bindless" style resource usage with many descriptors, need to optimize command <-> descriptor binding
-                const cvdescriptorset::PrefilterBindRequestMap reduced_map(*descriptor_set, set_binding_pair.second, cb_state);
-                const auto &binding_req_map = reduced_map.Map();
+                //////////// For the "bindless" style resource usage with many descriptors, need to optimize command <-> descriptor binding
+                //////////const cvdescriptorset::PrefilterBindRequestMap reduced_map(*descriptor_set, set_binding_pair.second, cb_state);
+                //////////const auto &binding_req_map = reduced_map.Map();
 
                 // Bind this set and its active descriptor resources to the command buffer
-                descriptor_set->UpdateDrawState(this, cb_state, binding_req_map);
+                descriptor_set->BindCommandBuffer(cb_state, set_binding_pair.second);
+                // descriptor_set->UpdateDrawState(this, cb_state, binding_req_map);
             }
         }
     }
