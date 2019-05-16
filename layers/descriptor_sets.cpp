@@ -142,7 +142,6 @@ size_t cvdescriptorset::DescriptorSetLayoutDef::hash() const {
     hc.Combine(binding_flags_);
     return hc.Value();
 }
-//
 
 // Return valid index or "end" i.e. binding_count_;
 // The asserts in "Get" are reduced to the set where no valid answer(like null or 0) could be given
@@ -181,21 +180,21 @@ VkDescriptorBindingFlagsEXT cvdescriptorset::DescriptorSetLayoutDef::GetDescript
     return binding_flags_[index];
 }
 
-// For the given global index, return index
-uint32_t cvdescriptorset::DescriptorSetLayoutDef::GetIndexFromGlobalIndex(const uint32_t global_index) const {
-    auto start_it = global_start_to_index_map_.upper_bound(global_index);
-    uint32_t index = binding_count_;
-    assert(start_it != global_start_to_index_map_.cbegin());
-    if (start_it != global_start_to_index_map_.cbegin()) {
-        --start_it;
-        index = start_it->second;
-#ifndef NDEBUG
-        const auto &range = GetGlobalIndexRangeFromBinding(bindings_[index].binding);
-        assert(range.start <= global_index && global_index < range.end);
-#endif
-    }
-    return index;
-}
+//////////// For the given global index, return index
+//////////uint32_t cvdescriptorset::DescriptorSetLayoutDef::GetIndexFromGlobalIndex(const uint32_t global_index) const {
+//////////    auto start_it = global_start_to_index_map_.upper_bound(global_index);
+//////////    uint32_t index = binding_count_;
+//////////    assert(start_it != global_start_to_index_map_.cbegin());
+//////////    if (start_it != global_start_to_index_map_.cbegin()) {
+//////////        --start_it;
+//////////        index = start_it->second;
+//////////#ifndef NDEBUG
+//////////        const auto &range = GetGlobalIndexRangeFromBinding(bindings_[index].binding);
+//////////        assert(range.start <= global_index && global_index < range.end);
+//////////#endif
+//////////    }
+//////////    return index;
+//////////}
 
 // For the given binding, return the global index range
 // As start and end are often needed in pairs, get both with a single hash lookup.
@@ -211,14 +210,14 @@ const cvdescriptorset::IndexRange &cvdescriptorset::DescriptorSetLayoutDef::GetG
     return kInvalidRange;
 }
 
-// For given binding, return ptr to ImmutableSampler array
-VkSampler const *cvdescriptorset::DescriptorSetLayoutDef::GetImmutableSamplerPtrFromBinding(const uint32_t binding) const {
-    const auto &bi_itr = binding_to_index_map_.find(binding);
-    if (bi_itr != binding_to_index_map_.end()) {
-        return bindings_[bi_itr->second].pImmutableSamplers;
-    }
-    return nullptr;
-}
+////////////// For given binding, return ptr to ImmutableSampler array
+////////////VkSampler const *cvdescriptorset::DescriptorSetLayoutDef::GetImmutableSamplerPtrFromBinding(const uint32_t binding) const {
+////////////    const auto &bi_itr = binding_to_index_map_.find(binding);
+////////////    if (bi_itr != binding_to_index_map_.end()) {
+////////////        return bindings_[bi_itr->second].pImmutableSamplers;
+////////////    }
+////////////    return nullptr;
+////////////}
 // Move to next valid binding having a non-zero binding count
 uint32_t cvdescriptorset::DescriptorSetLayoutDef::GetNextValidBinding(const uint32_t binding) const {
     auto it = non_empty_bindings_.upper_bound(binding);
@@ -233,130 +232,130 @@ VkSampler const *cvdescriptorset::DescriptorSetLayoutDef::GetImmutableSamplerPtr
     }
     return nullptr;
 }
-// If our layout is compatible with rh_ds_layout, return true,
-//  else return false and fill in error_msg will description of what causes incompatibility
-bool cvdescriptorset::DescriptorSetLayout::IsCompatible(DescriptorSetLayout const *const rh_ds_layout,
-                                                        std::string *error_msg) const {
-    // Trivial case
-    if (layout_ == rh_ds_layout->GetDescriptorSetLayout()) return true;
-    if (GetLayoutDef() == rh_ds_layout->GetLayoutDef()) return true;
-    bool detailed_compat_check =
-        GetLayoutDef()->IsCompatible(layout_, rh_ds_layout->GetDescriptorSetLayout(), rh_ds_layout->GetLayoutDef(), error_msg);
-    // The detailed check should never tell us mismatching DSL are compatible
-    assert(!detailed_compat_check);
-    return detailed_compat_check;
-}
+//////////// If our layout is compatible with rh_ds_layout, return true,
+////////////  else return false and fill in error_msg will description of what causes incompatibility
+//////////bool cvdescriptorset::DescriptorSetLayout::IsCompatible(DescriptorSetLayout const *const rh_ds_layout,
+//////////                                                        std::string *error_msg) const {
+//////////    // Trivial case
+//////////    if (layout_ == rh_ds_layout->GetDescriptorSetLayout()) return true;
+//////////    if (GetLayoutDef() == rh_ds_layout->GetLayoutDef()) return true;
+//////////    bool detailed_compat_check =
+//////////        GetLayoutDef()->IsCompatible(layout_, rh_ds_layout->GetDescriptorSetLayout(), rh_ds_layout->GetLayoutDef(), error_msg);
+//////////    // The detailed check should never tell us mismatching DSL are compatible
+//////////    assert(!detailed_compat_check);
+//////////    return detailed_compat_check;
+//////////}
 
-// Do a detailed compatibility check of this def (referenced by ds_layout), vs. the rhs (layout and def)
-// Should only be called if trivial accept has failed, and in that context should return false.
-bool cvdescriptorset::DescriptorSetLayoutDef::IsCompatible(VkDescriptorSetLayout ds_layout, VkDescriptorSetLayout rh_ds_layout,
-                                                           DescriptorSetLayoutDef const *const rh_ds_layout_def,
-                                                           std::string *error_msg) const {
-    if (descriptor_count_ != rh_ds_layout_def->descriptor_count_) {
-        std::stringstream error_str;
-        error_str << "DescriptorSetLayout " << ds_layout << " has " << descriptor_count_ << " descriptors, but DescriptorSetLayout "
-                  << rh_ds_layout << ", which comes from pipelineLayout, has " << rh_ds_layout_def->descriptor_count_
-                  << " descriptors.";
-        *error_msg = error_str.str();
-        return false;  // trivial fail case
-    }
+////////////// Do a detailed compatibility check of this def (referenced by ds_layout), vs. the rhs (layout and def)
+////////////// Should only be called if trivial accept has failed, and in that context should return false.
+//////////////bool cvdescriptorset::DescriptorSetLayoutDef::IsCompatible(VkDescriptorSetLayout ds_layout, VkDescriptorSetLayout rh_ds_layout,
+////////////                                                           DescriptorSetLayoutDef const *const rh_ds_layout_def,
+////////////                                                           std::string *error_msg) const {
+////////////    if (descriptor_count_ != rh_ds_layout_def->descriptor_count_) {
+////////////        std::stringstream error_str;
+////////////        error_str << "DescriptorSetLayout " << ds_layout << " has " << descriptor_count_ << " descriptors, but DescriptorSetLayout "
+////////////                  << rh_ds_layout << ", which comes from pipelineLayout, has " << rh_ds_layout_def->descriptor_count_
+////////////                  << " descriptors.";
+////////////        *error_msg = error_str.str();
+////////////        return false;  // trivial fail case
+////////////    }
+////////////
+////////////    // Descriptor counts match so need to go through bindings one-by-one
+////////////    //  and verify that type and stageFlags match
+////////////    for (auto binding : bindings_) {
+////////////        // TODO : Do we also need to check immutable samplers?
+////////////        // VkDescriptorSetLayoutBinding *rh_binding;
+////////////        if (binding.descriptorCount != rh_ds_layout_def->GetDescriptorCountFromBinding(binding.binding)) {
+////////////            std::stringstream error_str;
+////////////            error_str << "Binding " << binding.binding << " for DescriptorSetLayout " << ds_layout << " has a descriptorCount of "
+////////////                      << binding.descriptorCount << " but binding " << binding.binding << " for DescriptorSetLayout "
+////////////                      << rh_ds_layout << ", which comes from pipelineLayout, has a descriptorCount of "
+////////////                      << rh_ds_layout_def->GetDescriptorCountFromBinding(binding.binding);
+////////////            *error_msg = error_str.str();
+////////////            return false;
+////////////        } else if (binding.descriptorType != rh_ds_layout_def->GetTypeFromBinding(binding.binding)) {
+////////////            std::stringstream error_str;
+////////////            error_str << "Binding " << binding.binding << " for DescriptorSetLayout " << ds_layout << " is type '"
+////////////                      << string_VkDescriptorType(binding.descriptorType) << "' but binding " << binding.binding
+////////////                      << " for DescriptorSetLayout " << rh_ds_layout << ", which comes from pipelineLayout, is type '"
+////////////                      << string_VkDescriptorType(rh_ds_layout_def->GetTypeFromBinding(binding.binding)) << "'";
+////////////            *error_msg = error_str.str();
+////////////            return false;
+////////////        } else if (binding.stageFlags != rh_ds_layout_def->GetStageFlagsFromBinding(binding.binding)) {
+////////////            std::stringstream error_str;
+////////////            error_str << "Binding " << binding.binding << " for DescriptorSetLayout " << ds_layout << " has stageFlags "
+////////////                      << binding.stageFlags << " but binding " << binding.binding << " for DescriptorSetLayout " << rh_ds_layout
+////////////                      << ", which comes from pipelineLayout, has stageFlags "
+////////////                      << rh_ds_layout_def->GetStageFlagsFromBinding(binding.binding);
+////////////            *error_msg = error_str.str();
+////////////            return false;
+////////////        }
+////////////    }
+////////////    return true;
+////////////}
 
-    // Descriptor counts match so need to go through bindings one-by-one
-    //  and verify that type and stageFlags match
-    for (auto binding : bindings_) {
-        // TODO : Do we also need to check immutable samplers?
-        // VkDescriptorSetLayoutBinding *rh_binding;
-        if (binding.descriptorCount != rh_ds_layout_def->GetDescriptorCountFromBinding(binding.binding)) {
-            std::stringstream error_str;
-            error_str << "Binding " << binding.binding << " for DescriptorSetLayout " << ds_layout << " has a descriptorCount of "
-                      << binding.descriptorCount << " but binding " << binding.binding << " for DescriptorSetLayout "
-                      << rh_ds_layout << ", which comes from pipelineLayout, has a descriptorCount of "
-                      << rh_ds_layout_def->GetDescriptorCountFromBinding(binding.binding);
-            *error_msg = error_str.str();
-            return false;
-        } else if (binding.descriptorType != rh_ds_layout_def->GetTypeFromBinding(binding.binding)) {
-            std::stringstream error_str;
-            error_str << "Binding " << binding.binding << " for DescriptorSetLayout " << ds_layout << " is type '"
-                      << string_VkDescriptorType(binding.descriptorType) << "' but binding " << binding.binding
-                      << " for DescriptorSetLayout " << rh_ds_layout << ", which comes from pipelineLayout, is type '"
-                      << string_VkDescriptorType(rh_ds_layout_def->GetTypeFromBinding(binding.binding)) << "'";
-            *error_msg = error_str.str();
-            return false;
-        } else if (binding.stageFlags != rh_ds_layout_def->GetStageFlagsFromBinding(binding.binding)) {
-            std::stringstream error_str;
-            error_str << "Binding " << binding.binding << " for DescriptorSetLayout " << ds_layout << " has stageFlags "
-                      << binding.stageFlags << " but binding " << binding.binding << " for DescriptorSetLayout " << rh_ds_layout
-                      << ", which comes from pipelineLayout, has stageFlags "
-                      << rh_ds_layout_def->GetStageFlagsFromBinding(binding.binding);
-            *error_msg = error_str.str();
-            return false;
-        }
-    }
-    return true;
-}
-
-bool cvdescriptorset::DescriptorSetLayoutDef::IsNextBindingConsistent(const uint32_t binding) const {
-    if (!binding_to_index_map_.count(binding + 1)) return false;
-    auto const &bi_itr = binding_to_index_map_.find(binding);
-    if (bi_itr != binding_to_index_map_.end()) {
-        const auto &next_bi_itr = binding_to_index_map_.find(binding + 1);
-        if (next_bi_itr != binding_to_index_map_.end()) {
-            auto type = bindings_[bi_itr->second].descriptorType;
-            auto stage_flags = bindings_[bi_itr->second].stageFlags;
-            auto immut_samp = bindings_[bi_itr->second].pImmutableSamplers ? true : false;
-            auto flags = binding_flags_[bi_itr->second];
-            if ((type != bindings_[next_bi_itr->second].descriptorType) ||
-                (stage_flags != bindings_[next_bi_itr->second].stageFlags) ||
-                (immut_samp != (bindings_[next_bi_itr->second].pImmutableSamplers ? true : false)) ||
-                (flags != binding_flags_[next_bi_itr->second])) {
-                return false;
-            }
-            return true;
-        }
-    }
-    return false;
-}
-// Starting at offset descriptor of given binding, parse over update_count
-//  descriptor updates and verify that for any binding boundaries that are crossed, the next binding(s) are all consistent
-//  Consistency means that their type, stage flags, and whether or not they use immutable samplers matches
-//  If so, return true. If not, fill in error_msg and return false
-bool cvdescriptorset::DescriptorSetLayoutDef::VerifyUpdateConsistency(uint32_t current_binding, uint32_t offset,
-                                                                      uint32_t update_count, const char *type,
-                                                                      const VkDescriptorSet set, std::string *error_msg) const {
-    // Verify consecutive bindings match (if needed)
-    auto orig_binding = current_binding;
-    // Track count of descriptors in the current_bindings that are remaining to be updated
-    auto binding_remaining = GetDescriptorCountFromBinding(current_binding);
-    // First, it's legal to offset beyond your own binding so handle that case
-    //  Really this is just searching for the binding in which the update begins and adjusting offset accordingly
-    while (offset >= binding_remaining) {
-        // Advance to next binding, decrement offset by binding size
-        offset -= binding_remaining;
-        binding_remaining = GetDescriptorCountFromBinding(++current_binding);
-    }
-    binding_remaining -= offset;
-    while (update_count > binding_remaining) {  // While our updates overstep current binding
-        // Verify next consecutive binding matches type, stage flags & immutable sampler use
-        if (!IsNextBindingConsistent(current_binding++)) {
-            std::stringstream error_str;
-            error_str << "Attempting " << type;
-            if (IsPushDescriptor()) {
-                error_str << " push descriptors";
-            } else {
-                error_str << " descriptor set " << set;
-            }
-            error_str << " binding #" << orig_binding << " with #" << update_count
-                      << " descriptors being updated but this update oversteps the bounds of this binding and the next binding is "
-                         "not consistent with current binding so this update is invalid.";
-            *error_msg = error_str.str();
-            return false;
-        }
-        // For sake of this check consider the bindings updated and grab count for next binding
-        update_count -= binding_remaining;
-        binding_remaining = GetDescriptorCountFromBinding(current_binding);
-    }
-    return true;
-}
+////////////bool cvdescriptorset::DescriptorSetLayoutDef::IsNextBindingConsistent(const uint32_t binding) const {
+////////////    if (!binding_to_index_map_.count(binding + 1)) return false;
+////////////    auto const &bi_itr = binding_to_index_map_.find(binding);
+////////////    if (bi_itr != binding_to_index_map_.end()) {
+////////////        const auto &next_bi_itr = binding_to_index_map_.find(binding + 1);
+////////////        if (next_bi_itr != binding_to_index_map_.end()) {
+////////////            auto type = bindings_[bi_itr->second].descriptorType;
+////////////            auto stage_flags = bindings_[bi_itr->second].stageFlags;
+////////////            auto immut_samp = bindings_[bi_itr->second].pImmutableSamplers ? true : false;
+////////////            auto flags = binding_flags_[bi_itr->second];
+////////////            if ((type != bindings_[next_bi_itr->second].descriptorType) ||
+////////////                (stage_flags != bindings_[next_bi_itr->second].stageFlags) ||
+////////////                (immut_samp != (bindings_[next_bi_itr->second].pImmutableSamplers ? true : false)) ||
+////////////                (flags != binding_flags_[next_bi_itr->second])) {
+////////////                return false;
+////////////            }
+////////////            return true;
+////////////        }
+////////////    }
+////////////    return false;
+////////////}
+////////////// Starting at offset descriptor of given binding, parse over update_count
+//////////////  descriptor updates and verify that for any binding boundaries that are crossed, the next binding(s) are all consistent
+//////////////  Consistency means that their type, stage flags, and whether or not they use immutable samplers matches
+//////////////  If so, return true. If not, fill in error_msg and return false
+////////////bool cvdescriptorset::DescriptorSetLayoutDef::VerifyUpdateConsistency(uint32_t current_binding, uint32_t offset,
+////////////                                                                      uint32_t update_count, const char *type,
+////////////                                                                      const VkDescriptorSet set, std::string *error_msg) const {
+////////////    // Verify consecutive bindings match (if needed)
+////////////    auto orig_binding = current_binding;
+////////////    // Track count of descriptors in the current_bindings that are remaining to be updated
+////////////    auto binding_remaining = GetDescriptorCountFromBinding(current_binding);
+////////////    // First, it's legal to offset beyond your own binding so handle that case
+////////////    //  Really this is just searching for the binding in which the update begins and adjusting offset accordingly
+////////////    while (offset >= binding_remaining) {
+////////////        // Advance to next binding, decrement offset by binding size
+////////////        offset -= binding_remaining;
+////////////        binding_remaining = GetDescriptorCountFromBinding(++current_binding);
+////////////    }
+////////////    binding_remaining -= offset;
+////////////    while (update_count > binding_remaining) {  // While our updates overstep current binding
+////////////        // Verify next consecutive binding matches type, stage flags & immutable sampler use
+////////////        if (!IsNextBindingConsistent(current_binding++)) {
+////////////            std::stringstream error_str;
+////////////            error_str << "Attempting " << type;
+////////////            if (IsPushDescriptor()) {
+////////////                error_str << " push descriptors";
+////////////            } else {
+////////////                error_str << " descriptor set " << set;
+////////////            }
+////////////            error_str << " binding #" << orig_binding << " with #" << update_count
+////////////                      << " descriptors being updated but this update oversteps the bounds of this binding and the next binding is "
+////////////                         "not consistent with current binding so this update is invalid.";
+////////////            *error_msg = error_str.str();
+////////////            return false;
+////////////        }
+////////////        // For sake of this check consider the bindings updated and grab count for next binding
+////////////        update_count -= binding_remaining;
+////////////        binding_remaining = GetDescriptorCountFromBinding(current_binding);
+////////////    }
+////////////    return true;
+////////////}
 
 // The DescriptorSetLayout stores the per handle data for a descriptor set layout, and references the common defintion for the
 // handle invariant portion
@@ -453,40 +452,40 @@ cvdescriptorset::DescriptorSet::DescriptorSet(const VkDescriptorSet set, const V
 
 cvdescriptorset::DescriptorSet::~DescriptorSet() {}
 
-static std::string StringDescriptorReqViewType(descriptor_req req) {
-    std::string result("");
-    for (unsigned i = 0; i <= VK_IMAGE_VIEW_TYPE_END_RANGE; i++) {
-        if (req & (1 << i)) {
-            if (result.size()) result += ", ";
-            result += string_VkImageViewType(VkImageViewType(i));
-        }
-    }
+////////////static std::string StringDescriptorReqViewType(descriptor_req req) {
+////////////    std::string result("");
+////////////    for (unsigned i = 0; i <= VK_IMAGE_VIEW_TYPE_END_RANGE; i++) {
+////////////        if (req & (1 << i)) {
+////////////            if (result.size()) result += ", ";
+////////////            result += string_VkImageViewType(VkImageViewType(i));
+////////////        }
+////////////    }
+////////////
+////////////    if (!result.size()) result = "(none)";
+////////////
+////////////    return result;
+////////////}
 
-    if (!result.size()) result = "(none)";
+////////////static char const *StringDescriptorReqComponentType(descriptor_req req) {
+////////////    if (req & DESCRIPTOR_REQ_COMPONENT_TYPE_SINT) return "SINT";
+////////////    if (req & DESCRIPTOR_REQ_COMPONENT_TYPE_UINT) return "UINT";
+////////////    if (req & DESCRIPTOR_REQ_COMPONENT_TYPE_FLOAT) return "FLOAT";
+////////////    return "(none)";
+////////////}
 
-    return result;
-}
+////////////// Is this sets underlying layout compatible with passed in layout according to "Pipeline Layout Compatibility" in spec?
+////////////bool cvdescriptorset::DescriptorSet::IsCompatible(DescriptorSetLayout const *const layout, std::string *error) const {
+////////////    return layout->IsCompatible(p_layout_.get(), error);
+////////////}
 
-static char const *StringDescriptorReqComponentType(descriptor_req req) {
-    if (req & DESCRIPTOR_REQ_COMPONENT_TYPE_SINT) return "SINT";
-    if (req & DESCRIPTOR_REQ_COMPONENT_TYPE_UINT) return "UINT";
-    if (req & DESCRIPTOR_REQ_COMPONENT_TYPE_FLOAT) return "FLOAT";
-    return "(none)";
-}
-
-// Is this sets underlying layout compatible with passed in layout according to "Pipeline Layout Compatibility" in spec?
-bool cvdescriptorset::DescriptorSet::IsCompatible(DescriptorSetLayout const *const layout, std::string *error) const {
-    return layout->IsCompatible(p_layout_.get(), error);
-}
-
-static unsigned DescriptorRequirementsBitsFromFormat(VkFormat fmt) {
-    if (FormatIsSInt(fmt)) return DESCRIPTOR_REQ_COMPONENT_TYPE_SINT;
-    if (FormatIsUInt(fmt)) return DESCRIPTOR_REQ_COMPONENT_TYPE_UINT;
-    if (FormatIsDepthAndStencil(fmt)) return DESCRIPTOR_REQ_COMPONENT_TYPE_FLOAT | DESCRIPTOR_REQ_COMPONENT_TYPE_UINT;
-    if (fmt == VK_FORMAT_UNDEFINED) return 0;
-    // everything else -- UNORM/SNORM/FLOAT/USCALED/SSCALED is all float in the shader.
-    return DESCRIPTOR_REQ_COMPONENT_TYPE_FLOAT;
-}
+////////////static unsigned DescriptorRequirementsBitsFromFormat(VkFormat fmt) {
+////////////    if (FormatIsSInt(fmt)) return DESCRIPTOR_REQ_COMPONENT_TYPE_SINT;
+////////////    if (FormatIsUInt(fmt)) return DESCRIPTOR_REQ_COMPONENT_TYPE_UINT;
+////////////    if (FormatIsDepthAndStencil(fmt)) return DESCRIPTOR_REQ_COMPONENT_TYPE_FLOAT | DESCRIPTOR_REQ_COMPONENT_TYPE_UINT;
+////////////    if (fmt == VK_FORMAT_UNDEFINED) return 0;
+////////////    // everything else -- UNORM/SNORM/FLOAT/USCALED/SSCALED is all float in the shader.
+////////////    return DESCRIPTOR_REQ_COMPONENT_TYPE_FLOAT;
+////////////}
 
 // Loop through the write updates to do for a push descriptor set, ignoring dstSet
 void cvdescriptorset::DescriptorSet::PerformPushDescriptorsUpdate(uint32_t write_count, const VkWriteDescriptorSet *p_wds) {

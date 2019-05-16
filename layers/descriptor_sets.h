@@ -100,11 +100,11 @@ class DescriptorSetLayoutDef {
     const std::set<uint32_t> &GetSortedBindingSet() const { return non_empty_bindings_; }
     // Return true if given binding is present in this layout
     bool HasBinding(const uint32_t binding) const { return binding_to_index_map_.count(binding) > 0; };
-    // Return true if this DSL Def (referenced by the 1st layout) is compatible with another DSL Def (ref'd from the 2nd layout)
-    // else return false and update error_msg with description of incompatibility
-    bool IsCompatible(VkDescriptorSetLayout, VkDescriptorSetLayout, DescriptorSetLayoutDef const *const, std::string *) const;
-    // Return true if binding 1 beyond given exists and has same type, stageFlags & immutable sampler use
-    bool IsNextBindingConsistent(const uint32_t) const;
+    //////////// Return true if this DSL Def (referenced by the 1st layout) is compatible with another DSL Def (ref'd from the 2nd layout)
+    //////////// else return false and update error_msg with description of incompatibility
+    //////////bool IsCompatible(VkDescriptorSetLayout, VkDescriptorSetLayout, DescriptorSetLayoutDef const *const, std::string *) const;
+    ////////////// Return true if binding 1 beyond given exists and has same type, stageFlags & immutable sampler use
+    ////////////bool IsNextBindingConsistent(const uint32_t) const;
     uint32_t GetIndexFromBinding(uint32_t binding) const;
     // Various Get functions that can either be passed a binding#, which will
     //  be automatically translated into the appropriate index, or the index# can be passed in directly
@@ -130,10 +130,10 @@ class DescriptorSetLayoutDef {
         return GetDescriptorBindingFlagsFromIndex(GetIndexFromBinding(binding));
     }
     uint32_t GetIndexFromGlobalIndex(const uint32_t global_index) const;
-    VkDescriptorType GetTypeFromGlobalIndex(const uint32_t global_index) const {
-        return GetTypeFromIndex(GetIndexFromGlobalIndex(global_index));
-    }
-    VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t) const;
+    ////////////VkDescriptorType GetTypeFromGlobalIndex(const uint32_t global_index) const {
+    ////////////    return GetTypeFromIndex(GetIndexFromGlobalIndex(global_index));
+    ////////////}
+    //////////VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t) const;
     VkSampler const *GetImmutableSamplerPtrFromIndex(const uint32_t) const;
     // For a given binding and array index, return the corresponding index into the dynamic offset array
     int32_t GetDynamicOffsetIndexFromBinding(uint32_t binding) const {
@@ -150,9 +150,9 @@ class DescriptorSetLayoutDef {
 
     // Helper function to get the next valid binding for a descriptor
     uint32_t GetNextValidBinding(const uint32_t) const;
-    // For a particular binding starting at offset and having update_count descriptors
-    //  updated, verify that for any binding boundaries crossed, the update is consistent
-    bool VerifyUpdateConsistency(uint32_t, uint32_t, uint32_t, const char *, const VkDescriptorSet, std::string *) const;
+    //////////// For a particular binding starting at offset and having update_count descriptors
+    ////////////  updated, verify that for any binding boundaries crossed, the update is consistent
+    //////////bool VerifyUpdateConsistency(uint32_t, uint32_t, uint32_t, const char *, const VkDescriptorSet, std::string *) const;
     bool IsPushDescriptor() const { return GetCreateFlags() & VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR; };
 
     struct BindingTypeStats {
@@ -204,9 +204,9 @@ class DescriptorSetLayout {
                                    const VkPhysicalDeviceInlineUniformBlockFeaturesEXT *inline_uniform_block_features,
                                    const VkPhysicalDeviceInlineUniformBlockPropertiesEXT *inline_uniform_block_props);
     bool HasBinding(const uint32_t binding) const { return layout_id_->HasBinding(binding); }
-    // Return true if this layout is compatible with passed in layout from a pipelineLayout,
-    //   else return false and update error_msg with description of incompatibility
-    bool IsCompatible(DescriptorSetLayout const *const, std::string *) const;
+    //////////// Return true if this layout is compatible with passed in layout from a pipelineLayout,
+    ////////////   else return false and update error_msg with description of incompatibility
+    //////////bool IsCompatible(DescriptorSetLayout const *const, std::string *) const;
     // Straightforward Get functions
     VkDescriptorSetLayout GetDescriptorSetLayout() const { return layout_; };
     bool IsDestroyed() const { return layout_destroyed_; }
@@ -217,7 +217,7 @@ class DescriptorSetLayout {
     uint32_t GetDynamicDescriptorCount() const { return layout_id_->GetDynamicDescriptorCount(); };
     uint32_t GetBindingCount() const { return layout_id_->GetBindingCount(); };
     VkDescriptorSetLayoutCreateFlags GetCreateFlags() const { return layout_id_->GetCreateFlags(); }
-    bool IsNextBindingConsistent(const uint32_t) const;
+    ////////////bool IsNextBindingConsistent(const uint32_t) const;
     uint32_t GetIndexFromBinding(uint32_t binding) const { return layout_id_->GetIndexFromBinding(binding); }
     // Various Get functions that can either be passed a binding#, which will
     //  be automatically translated into the appropriate index, or the index# can be passed in directly
@@ -249,12 +249,12 @@ class DescriptorSetLayout {
     uint32_t GetIndexFromGlobalIndex(const uint32_t global_index) const {
         return layout_id_->GetIndexFromGlobalIndex(global_index);
     }
-    VkDescriptorType GetTypeFromGlobalIndex(const uint32_t global_index) const {
-        return GetTypeFromIndex(GetIndexFromGlobalIndex(global_index));
-    }
-    VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t binding) const {
-        return layout_id_->GetImmutableSamplerPtrFromBinding(binding);
-    }
+    //////////VkDescriptorType GetTypeFromGlobalIndex(const uint32_t global_index) const {
+    //////////    return GetTypeFromIndex(GetIndexFromGlobalIndex(global_index));
+    //////////}
+    //////////VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t binding) const {
+    //////////    return layout_id_->GetImmutableSamplerPtrFromBinding(binding);
+    //////////}
     VkSampler const *GetImmutableSamplerPtrFromIndex(const uint32_t index) const {
         return layout_id_->GetImmutableSamplerPtrFromIndex(index);
     }
@@ -269,12 +269,12 @@ class DescriptorSetLayout {
     }
     // Helper function to get the next valid binding for a descriptor
     uint32_t GetNextValidBinding(const uint32_t binding) const { return layout_id_->GetNextValidBinding(binding); }
-    // For a particular binding starting at offset and having update_count descriptors
-    //  updated, verify that for any binding boundaries crossed, the update is consistent
-    bool VerifyUpdateConsistency(uint32_t current_binding, uint32_t offset, uint32_t update_count, const char *type,
-                                 const VkDescriptorSet set, std::string *error_msg) const {
-        return layout_id_->VerifyUpdateConsistency(current_binding, offset, update_count, type, set, error_msg);
-    }
+    //////////// For a particular binding starting at offset and having update_count descriptors
+    ////////////  updated, verify that for any binding boundaries crossed, the update is consistent
+    //////////bool VerifyUpdateConsistency(uint32_t current_binding, uint32_t offset, uint32_t update_count, const char *type,
+    //////////                             const VkDescriptorSet set, std::string *error_msg) const {
+    //////////    return layout_id_->VerifyUpdateConsistency(current_binding, offset, update_count, type, set, error_msg);
+    //////////}
     bool IsPushDescriptor() const { return layout_id_->IsPushDescriptor(); }
 
     using BindingTypeStats = DescriptorSetLayoutDef::BindingTypeStats;
@@ -473,7 +473,7 @@ class DescriptorSet : public BASE_NODE {
     uint32_t GetDynamicDescriptorCount() const { return p_layout_->GetDynamicDescriptorCount(); };
     uint32_t GetBindingCount() const { return p_layout_->GetBindingCount(); };
     VkDescriptorType GetTypeFromIndex(const uint32_t index) const { return p_layout_->GetTypeFromIndex(index); };
-    VkDescriptorType GetTypeFromGlobalIndex(const uint32_t index) const { return p_layout_->GetTypeFromGlobalIndex(index); };
+    ////////////VkDescriptorType GetTypeFromGlobalIndex(const uint32_t index) const { return p_layout_->GetTypeFromGlobalIndex(index); };
     VkDescriptorType GetTypeFromBinding(const uint32_t binding) const { return p_layout_->GetTypeFromBinding(binding); };
     uint32_t GetDescriptorCountFromIndex(const uint32_t index) const { return p_layout_->GetDescriptorCountFromIndex(index); };
     uint32_t GetDescriptorCountFromBinding(const uint32_t binding) const {
@@ -485,30 +485,30 @@ class DescriptorSet : public BASE_NODE {
     }
     // Return true if given binding is present in this set
     bool HasBinding(const uint32_t binding) const { return p_layout_->HasBinding(binding); };
-    // Is this set compatible with the given layout?
-    bool IsCompatible(DescriptorSetLayout const *const, std::string *) const;
-    // For given bindings validate state at time of draw is correct, returning false on error and writing error details into string*
-    bool ValidateDrawState(const std::map<uint32_t, descriptor_req> &, const std::vector<uint32_t> &, CMD_BUFFER_STATE *,
-                           const char *caller, std::string *) const;
-    // For given set of bindings, add any buffers and images that will be updated to their respective unordered_sets & return number
-    // of objects inserted
-    uint32_t GetStorageUpdates(const std::map<uint32_t, descriptor_req> &, std::unordered_set<VkBuffer> *,
-                               std::unordered_set<VkImageView> *) const;
+    ////////// Is this set compatible with the given layout?
+    ////////bool IsCompatible(DescriptorSetLayout const *const, std::string *) const;
+    ////////////// For given bindings validate state at time of draw is correct, returning false on error and writing error details into string*
+    ////////////bool ValidateDrawState(const std::map<uint32_t, descriptor_req> &, const std::vector<uint32_t> &, CMD_BUFFER_STATE *,
+    ////////////                       const char *caller, std::string *) const;
+    ////////////// For given set of bindings, add any buffers and images that will be updated to their respective unordered_sets & return number
+    ////////////// of objects inserted
+    ////////////uint32_t GetStorageUpdates(const std::map<uint32_t, descriptor_req> &, std::unordered_set<VkBuffer> *,
+    ////////////                           std::unordered_set<VkImageView> *) const;
 
-    std::string StringifySetAndLayout() const;
-    // Descriptor Update functions. These functions validate state and perform update separately
-    // Validate contents of a push descriptor update
-    bool ValidatePushDescriptorsUpdate(const debug_report_data *report_data, uint32_t write_count,
-                                       const VkWriteDescriptorSet *p_wds, const char *func_name);
+    //////////std::string StringifySetAndLayout() const;
+    //////////// Descriptor Update functions. These functions validate state and perform update separately
+    //////////// Validate contents of a push descriptor update
+    //////////bool ValidatePushDescriptorsUpdate(const debug_report_data *report_data, uint32_t write_count,
+    //////////                                   const VkWriteDescriptorSet *p_wds, const char *func_name);
     // Perform a push update whose contents were just validated using ValidatePushDescriptorsUpdate
     void PerformPushDescriptorsUpdate(uint32_t write_count, const VkWriteDescriptorSet *p_wds);
-    // Validate contents of a WriteUpdate
-    bool ValidateWriteUpdate(const debug_report_data *, const VkWriteDescriptorSet *, const char *, std::string *, std::string *);
+    ////////////// Validate contents of a WriteUpdate
+    ////////////bool ValidateWriteUpdate(const debug_report_data *, const VkWriteDescriptorSet *, const char *, std::string *, std::string *);
     // Perform a WriteUpdate whose contents were just validated using ValidateWriteUpdate
     void PerformWriteUpdate(const VkWriteDescriptorSet *);
-    // Validate contents of a CopyUpdate
-    bool ValidateCopyUpdate(const debug_report_data *, const VkCopyDescriptorSet *, const DescriptorSet *, const char *func_name,
-                            std::string *, std::string *);
+    ////////////// Validate contents of a CopyUpdate
+    ////////////bool ValidateCopyUpdate(const debug_report_data *, const VkCopyDescriptorSet *, const DescriptorSet *, const char *func_name,
+    ////////////                        std::string *, std::string *);
     // Perform a CopyUpdate whose contents were just validated using ValidateCopyUpdate
     void PerformCopyUpdate(const VkCopyDescriptorSet *, const DescriptorSet *);
 
@@ -538,9 +538,9 @@ class DescriptorSet : public BASE_NODE {
         cb_bindings.erase(cb_node);
         ClearCachedValidation(cb_node);
     }
-    VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t index) const {
-        return p_layout_->GetImmutableSamplerPtrFromBinding(index);
-    };
+    //////////VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t index) const {
+    //////////    return p_layout_->GetImmutableSamplerPtrFromBinding(index);
+    //////////};
     // For a particular binding, get the global index
     const IndexRange GetGlobalIndexRangeFromBinding(const uint32_t binding, bool actual_length = false) const {
         if (actual_length && binding == p_layout_->GetMaxBinding() && IsVariableDescriptorCount(binding)) {
