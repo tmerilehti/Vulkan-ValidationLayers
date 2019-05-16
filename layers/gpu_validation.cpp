@@ -27,7 +27,6 @@
 // This define indicates that we will supply Vulkan function pointers at initialization
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #include "gpu_validation.h"
-#include "shader_validation.h"
 #include "spirv-tools/libspirv.h"
 #include "spirv-tools/optimizer.hpp"
 #include "spirv-tools/instrument.hpp"

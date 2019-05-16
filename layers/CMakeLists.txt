@@ -203,7 +203,7 @@ set(CORE_VALIDATION_LIBRARY_FILES
     #convert_to_renderpass2.cpp
     descriptor_sets.cpp
     #buffer_validation.cpp
-    shader_validation.cpp
+    #shader_validation.cpp
     gpu_validation.cpp
     xxhash.c)
 

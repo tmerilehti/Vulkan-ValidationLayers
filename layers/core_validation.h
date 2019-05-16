@@ -32,6 +32,8 @@
 #include "vulkan/vk_layer.h"
 #include "vk_typemap_helper.h"
 #include "vk_layer_data.h"
+#include <SPIRV/spirv.hpp>
+#include <spirv_tools_commit_id.h>
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -40,6 +42,73 @@
 #include <vector>
 #include <list>
 #include <deque>
+
+// A forward iterator over spirv instructions. Provides easy access to len, opcode, and content words
+// without the caller needing to care too much about the physical SPIRV module layout.
+struct spirv_inst_iter {
+    std::vector<uint32_t>::const_iterator zero;
+    std::vector<uint32_t>::const_iterator it;
+
+    uint32_t len() {
+        auto result = *it >> 16;
+        assert(result > 0);
+        return result;
+    }
+
+    uint32_t opcode() { return *it & 0x0ffffu; }
+
+    uint32_t const& word(unsigned n) {
+        assert(n < len());
+        return it[n];
+    }
+
+    uint32_t offset() { return (uint32_t)(it - zero); }
+
+    spirv_inst_iter() {}
+
+    spirv_inst_iter(std::vector<uint32_t>::const_iterator zero, std::vector<uint32_t>::const_iterator it) : zero(zero), it(it) {}
+
+    bool operator==(spirv_inst_iter const& other) { return it == other.it; }
+
+    bool operator!=(spirv_inst_iter const& other) { return it != other.it; }
+
+    spirv_inst_iter operator++(int) {  // x++
+        spirv_inst_iter ii = *this;
+        it += len();
+        return ii;
+    }
+
+    spirv_inst_iter operator++() {  // ++x;
+        it += len();
+        return *this;
+    }
+
+    // The iterator and the value are the same thing.
+    spirv_inst_iter& operator*() { return *this; }
+    spirv_inst_iter const& operator*() const { return *this; }
+};
+
+struct SHADER_MODULE_STATE {
+    // The spirv image itself
+    std::vector<uint32_t> words;
+    bool has_valid_spirv;
+    VkShaderModule vk_shader_module;
+    uint32_t gpu_validation_shader_id;
+
+    SHADER_MODULE_STATE(VkShaderModuleCreateInfo const* pCreateInfo, VkShaderModule shaderModule, uint32_t unique_shader_id)
+        : words((uint32_t*)pCreateInfo->pCode, (uint32_t*)pCreateInfo->pCode + pCreateInfo->codeSize / sizeof(uint32_t)),
+          has_valid_spirv(true),
+          vk_shader_module(shaderModule),
+          gpu_validation_shader_id(unique_shader_id) {}
+
+    SHADER_MODULE_STATE() : has_valid_spirv(false), vk_shader_module(VK_NULL_HANDLE) {}
+
+    // Expose begin() / end() to enable range-based for
+    spirv_inst_iter begin() const { return spirv_inst_iter(words.begin(), words.begin() + 5); }  // First insn
+    spirv_inst_iter end() const { return spirv_inst_iter(words.begin(), words.end()); }          // Just past last insn
+    // Given an offset into the module, produce an iterator there.
+    spirv_inst_iter at(unsigned offset) const { return spirv_inst_iter(words.begin(), words.begin() + offset); }
+};
 
 struct PHYSICAL_DEVICE_STATE {
     VkPhysicalDevice phys_device = VK_NULL_HANDLE;
@@ -280,22 +349,15 @@ class CoreChecks : public ValidationObject {
                                     uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers);
     void PreCallRecordGetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
                                                   VkPhysicalDeviceProperties* pPhysicalDeviceProperties);
-
-    // From DrawDispatch, temporarily
     void PreCallRecordCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex,
                               uint32_t firstInstance);
-
     void PreCallRecordCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount, uint32_t instanceCount,
                                      uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-
     void PreCallRecordCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t count,
                                       uint32_t stride);
-
     void PreCallRecordCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t count,
                                              uint32_t stride);
-
     void PreCallRecordCmdDispatch(VkCommandBuffer commandBuffer, uint32_t x, uint32_t y, uint32_t z);
-
     void PreCallRecordCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset);
 
 };  // Class CoreChecks

@@ -45,7 +45,6 @@
 #include "vk_enum_string_helper.h"
 #include "chassis.h"
 #include "core_validation.h"
-#include "shader_validation.h"
 #include "vk_layer_utils.h"
 
 using std::max;
@@ -426,10 +425,6 @@ void CoreChecks::UpdateDrawState(CMD_BUFFER_STATE *cb_state, const VkPipelineBin
             // Pull the set node
             cvdescriptorset::DescriptorSet *descriptor_set = state.boundDescriptorSets[setIndex];
             if (!descriptor_set->IsPushDescriptor()) {
-                //////////// For the "bindless" style resource usage with many descriptors, need to optimize command <-> descriptor binding
-                //////////const cvdescriptorset::PrefilterBindRequestMap reduced_map(*descriptor_set, set_binding_pair.second, cb_state);
-                //////////const auto &binding_req_map = reduced_map.Map();
-
                 // Bind this set and its active descriptor resources to the command buffer
                 descriptor_set->BindCommandBuffer(cb_state, set_binding_pair.second);
                 // descriptor_set->UpdateDrawState(this, cb_state, binding_req_map);
@@ -678,8 +673,8 @@ void CoreChecks::UpdateLastBoundDescriptorSets(CMD_BUFFER_STATE *cb_state, VkPip
 
     // Clean up the "disturbed" before and after the range to be set
     if (required_size < current_size) {
-            // We're not disturbing past last, so leave the upper binding data alone.
-            required_size = current_size;
+        // We're not disturbing past last, so leave the upper binding data alone.
+        required_size = current_size;
     }
 
     // We resize if we need more set entries or if those past "last" are disturbed
@@ -788,39 +783,39 @@ void CoreChecks::PostCallRecordCmdDispatchIndirect(VkCommandBuffer commandBuffer
 }
 
 void CoreChecks::PostCallRecordCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount,
-    uint32_t firstVertex, uint32_t firstInstance) {
+                                       uint32_t firstVertex, uint32_t firstInstance) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void CoreChecks::PostCallRecordCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount, uint32_t instanceCount,
-    uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
+                                              uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void CoreChecks::PostCallRecordCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t count,
-    uint32_t stride) {
+                                               uint32_t stride) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void CoreChecks::PostCallRecordCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
-    uint32_t count, uint32_t stride) {
+                                                      uint32_t count, uint32_t stride) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void CoreChecks::PreCallRecordCmdDrawIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
-    VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount,
-    uint32_t stride) {
+                                                      VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount,
+                                                      uint32_t stride) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void CoreChecks::PreCallRecordCmdDrawIndexedIndirectCountKHR(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
-    VkBuffer countBuffer, VkDeviceSize countBufferOffset,
-    uint32_t maxDrawCount, uint32_t stride) {
+                                                             VkBuffer countBuffer, VkDeviceSize countBufferOffset,
+                                                             uint32_t maxDrawCount, uint32_t stride) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
@@ -831,52 +826,37 @@ void CoreChecks::PreCallRecordCmdDrawMeshTasksNV(VkCommandBuffer commandBuffer, 
 }
 
 void CoreChecks::PreCallRecordCmdDrawMeshTasksIndirectNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
-    uint32_t drawCount, uint32_t stride) {
+                                                         uint32_t drawCount, uint32_t stride) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void CoreChecks::PreCallRecordCmdDrawMeshTasksIndirectCountNV(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
-    VkBuffer countBuffer, VkDeviceSize countBufferOffset,
-    uint32_t maxDrawCount, uint32_t stride) {
+                                                              VkBuffer countBuffer, VkDeviceSize countBufferOffset,
+                                                              uint32_t maxDrawCount, uint32_t stride) {
     CMD_BUFFER_STATE *cb_state = GetCBState(commandBuffer);
     UpdateStateCmdDrawType(cb_state, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
-
-
-
-
-
-
-
-
-
-
 void CoreChecks::PreCallRecordCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount,
-    uint32_t firstVertex, uint32_t firstInstance) {
+                                      uint32_t firstVertex, uint32_t firstInstance) {
     GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
-
-
 
 void CoreChecks::PreCallRecordCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount, uint32_t instanceCount,
-    uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
+                                             uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
     GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
-
 
 void CoreChecks::PreCallRecordCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t count,
-    uint32_t stride) {
+                                              uint32_t stride) {
     GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
-
 
 void CoreChecks::PreCallRecordCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
-    uint32_t count, uint32_t stride) {
+                                                     uint32_t count, uint32_t stride) {
     GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
-
 
 void CoreChecks::PreCallRecordCmdDispatch(VkCommandBuffer commandBuffer, uint32_t x, uint32_t y, uint32_t z) {
     GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
@@ -886,4 +866,24 @@ void CoreChecks::PreCallRecordCmdDispatchIndirect(VkCommandBuffer commandBuffer,
     GpuAllocateValidationResources(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
+void CoreChecks::PreCallRecordCreateShaderModule(VkDevice device, const VkShaderModuleCreateInfo *pCreateInfo,
+                                                 const VkAllocationCallbacks *pAllocator, VkShaderModule *pShaderModule,
+                                                 void *csm_state_data) {
+    create_shader_module_api_state *csm_state = reinterpret_cast<create_shader_module_api_state *>(csm_state_data);
+    if (enabled.gpu_validation) {
+        GpuPreCallCreateShaderModule(pCreateInfo, pAllocator, pShaderModule, &csm_state->unique_shader_id,
+                                     &csm_state->instrumented_create_info, &csm_state->instrumented_pgm);
+    }
+}
 
+void CoreChecks::PostCallRecordCreateShaderModule(VkDevice device, const VkShaderModuleCreateInfo *pCreateInfo,
+                                                  const VkAllocationCallbacks *pAllocator, VkShaderModule *pShaderModule,
+                                                  VkResult result, void *csm_state_data) {
+    if (VK_SUCCESS != result) return;
+    create_shader_module_api_state *csm_state = reinterpret_cast<create_shader_module_api_state *>(csm_state_data);
+
+    bool is_spirv = (pCreateInfo->pCode[0] == spv::MagicNumber);
+    std::unique_ptr<SHADER_MODULE_STATE> new_shader_module(
+        is_spirv ? new SHADER_MODULE_STATE(pCreateInfo, *pShaderModule, csm_state->unique_shader_id) : new SHADER_MODULE_STATE());
+    shaderModuleMap[*pShaderModule] = std::move(new_shader_module);
+}

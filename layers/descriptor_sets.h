@@ -99,11 +99,6 @@ class DescriptorSetLayoutDef {
     const std::set<uint32_t> &GetSortedBindingSet() const { return non_empty_bindings_; }
     // Return true if given binding is present in this layout
     bool HasBinding(const uint32_t binding) const { return binding_to_index_map_.count(binding) > 0; };
-    //////////// Return true if this DSL Def (referenced by the 1st layout) is compatible with another DSL Def (ref'd from the 2nd layout)
-    //////////// else return false and update error_msg with description of incompatibility
-    //////////bool IsCompatible(VkDescriptorSetLayout, VkDescriptorSetLayout, DescriptorSetLayoutDef const *const, std::string *) const;
-    ////////////// Return true if binding 1 beyond given exists and has same type, stageFlags & immutable sampler use
-    ////////////bool IsNextBindingConsistent(const uint32_t) const;
     uint32_t GetIndexFromBinding(uint32_t binding) const;
     // Various Get functions that can either be passed a binding#, which will
     //  be automatically translated into the appropriate index, or the index# can be passed in directly
@@ -129,10 +124,6 @@ class DescriptorSetLayoutDef {
         return GetDescriptorBindingFlagsFromIndex(GetIndexFromBinding(binding));
     }
     uint32_t GetIndexFromGlobalIndex(const uint32_t global_index) const;
-    ////////////VkDescriptorType GetTypeFromGlobalIndex(const uint32_t global_index) const {
-    ////////////    return GetTypeFromIndex(GetIndexFromGlobalIndex(global_index));
-    ////////////}
-    //////////VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t) const;
     VkSampler const *GetImmutableSamplerPtrFromIndex(const uint32_t) const;
     // For a given binding and array index, return the corresponding index into the dynamic offset array
     int32_t GetDynamicOffsetIndexFromBinding(uint32_t binding) const {
@@ -149,9 +140,6 @@ class DescriptorSetLayoutDef {
 
     // Helper function to get the next valid binding for a descriptor
     uint32_t GetNextValidBinding(const uint32_t) const;
-    //////////// For a particular binding starting at offset and having update_count descriptors
-    ////////////  updated, verify that for any binding boundaries crossed, the update is consistent
-    //////////bool VerifyUpdateConsistency(uint32_t, uint32_t, uint32_t, const char *, const VkDescriptorSet, std::string *) const;
     bool IsPushDescriptor() const { return GetCreateFlags() & VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR; };
 
    private:
@@ -189,15 +177,7 @@ class DescriptorSetLayout {
    public:
     // Constructors and destructor
     DescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo *p_create_info, const VkDescriptorSetLayout layout);
-    // Validate create info - should be called prior to creation
-    static bool ValidateCreateInfo(const debug_report_data *, const VkDescriptorSetLayoutCreateInfo *, const bool, const uint32_t,
-                                   const bool, const VkPhysicalDeviceDescriptorIndexingFeaturesEXT *descriptor_indexing_features,
-                                   const VkPhysicalDeviceInlineUniformBlockFeaturesEXT *inline_uniform_block_features,
-                                   const VkPhysicalDeviceInlineUniformBlockPropertiesEXT *inline_uniform_block_props);
     bool HasBinding(const uint32_t binding) const { return layout_id_->HasBinding(binding); }
-    //////////// Return true if this layout is compatible with passed in layout from a pipelineLayout,
-    ////////////   else return false and update error_msg with description of incompatibility
-    //////////bool IsCompatible(DescriptorSetLayout const *const, std::string *) const;
     // Straightforward Get functions
     VkDescriptorSetLayout GetDescriptorSetLayout() const { return layout_; };
     bool IsDestroyed() const { return layout_destroyed_; }
@@ -208,7 +188,6 @@ class DescriptorSetLayout {
     uint32_t GetDynamicDescriptorCount() const { return layout_id_->GetDynamicDescriptorCount(); };
     uint32_t GetBindingCount() const { return layout_id_->GetBindingCount(); };
     VkDescriptorSetLayoutCreateFlags GetCreateFlags() const { return layout_id_->GetCreateFlags(); }
-    ////////////bool IsNextBindingConsistent(const uint32_t) const;
     uint32_t GetIndexFromBinding(uint32_t binding) const { return layout_id_->GetIndexFromBinding(binding); }
     // Various Get functions that can either be passed a binding#, which will
     //  be automatically translated into the appropriate index, or the index# can be passed in directly
@@ -240,12 +219,6 @@ class DescriptorSetLayout {
     uint32_t GetIndexFromGlobalIndex(const uint32_t global_index) const {
         return layout_id_->GetIndexFromGlobalIndex(global_index);
     }
-    //////////VkDescriptorType GetTypeFromGlobalIndex(const uint32_t global_index) const {
-    //////////    return GetTypeFromIndex(GetIndexFromGlobalIndex(global_index));
-    //////////}
-    //////////VkSampler const *GetImmutableSamplerPtrFromBinding(const uint32_t binding) const {
-    //////////    return layout_id_->GetImmutableSamplerPtrFromBinding(binding);
-    //////////}
     VkSampler const *GetImmutableSamplerPtrFromIndex(const uint32_t index) const {
         return layout_id_->GetImmutableSamplerPtrFromIndex(index);
     }
@@ -260,12 +233,6 @@ class DescriptorSetLayout {
     }
     // Helper function to get the next valid binding for a descriptor
     uint32_t GetNextValidBinding(const uint32_t binding) const { return layout_id_->GetNextValidBinding(binding); }
-    //////////// For a particular binding starting at offset and having update_count descriptors
-    ////////////  updated, verify that for any binding boundaries crossed, the update is consistent
-    //////////bool VerifyUpdateConsistency(uint32_t current_binding, uint32_t offset, uint32_t update_count, const char *type,
-    //////////                             const VkDescriptorSet set, std::string *error_msg) const {
-    //////////    return layout_id_->VerifyUpdateConsistency(current_binding, offset, update_count, type, set, error_msg);
-    //////////}
     bool IsPushDescriptor() const { return layout_id_->IsPushDescriptor(); }
 
    private:
@@ -304,10 +271,6 @@ class Descriptor {
 };
 // Shared helper functions - These are useful because the shared sampler image descriptor type
 //  performs common functions with both sampler and image descriptors so they can share their common functions
-bool ValidateSampler(const VkSampler, CoreChecks *);
-bool ValidateImageUpdate(VkImageView, VkImageLayout, VkDescriptorType, CoreChecks *, const char *func_name, std::string *,
-                         std::string *);
-
 class SamplerDescriptor : public Descriptor {
    public:
     SamplerDescriptor(const VkSampler *);
@@ -319,7 +282,6 @@ class SamplerDescriptor : public Descriptor {
     VkSampler GetSampler() const { return sampler_; }
 
    private:
-    // bool ValidateSampler(const VkSampler) const;
     VkSampler sampler_;
     bool immutable_;
 };
@@ -404,7 +366,7 @@ class InlineUniformDescriptor : public Descriptor {
     }
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
     void CopyUpdate(const Descriptor *) override { updated = true; }
-    void BindCommandBuffer(CMD_BUFFER_STATE *) {};
+    void BindCommandBuffer(CMD_BUFFER_STATE *){};
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
 };
 
@@ -416,21 +378,16 @@ class AccelerationStructureDescriptor : public Descriptor {
     }
     void WriteUpdate(const VkWriteDescriptorSet *, const uint32_t) override { updated = true; }
     void CopyUpdate(const Descriptor *) override { updated = true; }
-    void BindCommandBuffer(CMD_BUFFER_STATE *) {};
+    void BindCommandBuffer(CMD_BUFFER_STATE *){};
     void UpdateDrawState(CoreChecks *, CMD_BUFFER_STATE *) override {}
 };
 
-// Structs to contain common elements that need to be shared between Validate* and Perform* calls below
 struct AllocateDescriptorSetsData {
     std::map<uint32_t, uint32_t> required_descriptors_by_type;
     std::vector<std::shared_ptr<DescriptorSetLayout const>> layout_nodes;
     AllocateDescriptorSetsData(uint32_t);
 };
 // Helper functions for descriptor set functions that cross multiple sets
-// "Validate" will make sure an update is ok without actually performing it
-bool ValidateUpdateDescriptorSets(const debug_report_data *, const CoreChecks *, uint32_t, const VkWriteDescriptorSet *, uint32_t,
-                                  const VkCopyDescriptorSet *, const char *func_name);
-// "Perform" does the update with the assumption that ValidateUpdateDescriptorSets() has passed for the given update
 void PerformUpdateDescriptorSets(CoreChecks *, uint32_t, const VkWriteDescriptorSet *, uint32_t, const VkCopyDescriptorSet *);
 
 // Helper class to encapsulate the descriptor update template decoding logic
@@ -453,11 +410,7 @@ struct DecodedTemplateUpdate {
  *
  * At construction a vector of Descriptor* is created with types corresponding to the
  *   layout. The primary operation performed on the descriptors is to update them
- *   via write or copy updates, and validate that the update contents are correct.
- *   In order to validate update contents, the DescriptorSet stores a bunch of ptrs
- *   to data maps where various Vulkan objects can be looked up. The management of
- *   those maps is performed externally. The set class relies on their contents to
- *   be correct at the time of update.
+ *   via write or copy updates.
  */
 class DescriptorSet : public BASE_NODE {
    public:
@@ -469,7 +422,6 @@ class DescriptorSet : public BASE_NODE {
     uint32_t GetDynamicDescriptorCount() const { return p_layout_->GetDynamicDescriptorCount(); };
     uint32_t GetBindingCount() const { return p_layout_->GetBindingCount(); };
     VkDescriptorType GetTypeFromIndex(const uint32_t index) const { return p_layout_->GetTypeFromIndex(index); };
-    ////////////VkDescriptorType GetTypeFromGlobalIndex(const uint32_t index) const { return p_layout_->GetTypeFromGlobalIndex(index); };
     VkDescriptorType GetTypeFromBinding(const uint32_t binding) const { return p_layout_->GetTypeFromBinding(binding); };
     uint32_t GetDescriptorCountFromIndex(const uint32_t index) const { return p_layout_->GetDescriptorCountFromIndex(index); };
     uint32_t GetDescriptorCountFromBinding(const uint32_t binding) const {
@@ -481,30 +433,10 @@ class DescriptorSet : public BASE_NODE {
     }
     // Return true if given binding is present in this set
     bool HasBinding(const uint32_t binding) const { return p_layout_->HasBinding(binding); };
-    ////////// Is this set compatible with the given layout?
-    ////////bool IsCompatible(DescriptorSetLayout const *const, std::string *) const;
-    ////////////// For given bindings validate state at time of draw is correct, returning false on error and writing error details into string*
-    ////////////bool ValidateDrawState(const std::map<uint32_t, descriptor_req> &, const std::vector<uint32_t> &, CMD_BUFFER_STATE *,
-    ////////////                       const char *caller, std::string *) const;
-    ////////////// For given set of bindings, add any buffers and images that will be updated to their respective unordered_sets & return number
-    ////////////// of objects inserted
-    ////////////uint32_t GetStorageUpdates(const std::map<uint32_t, descriptor_req> &, std::unordered_set<VkBuffer> *,
-    ////////////                           std::unordered_set<VkImageView> *) const;
-
-    //////////std::string StringifySetAndLayout() const;
-    //////////// Descriptor Update functions. These functions validate state and perform update separately
-    //////////// Validate contents of a push descriptor update
-    //////////bool ValidatePushDescriptorsUpdate(const debug_report_data *report_data, uint32_t write_count,
-    //////////                                   const VkWriteDescriptorSet *p_wds, const char *func_name);
     // Perform a push update whose contents were just validated using ValidatePushDescriptorsUpdate
     void PerformPushDescriptorsUpdate(uint32_t write_count, const VkWriteDescriptorSet *p_wds);
-    ////////////// Validate contents of a WriteUpdate
-    ////////////bool ValidateWriteUpdate(const debug_report_data *, const VkWriteDescriptorSet *, const char *, std::string *, std::string *);
     // Perform a WriteUpdate whose contents were just validated using ValidateWriteUpdate
     void PerformWriteUpdate(const VkWriteDescriptorSet *);
-    ////////////// Validate contents of a CopyUpdate
-    ////////////bool ValidateCopyUpdate(const debug_report_data *, const VkCopyDescriptorSet *, const DescriptorSet *, const char *func_name,
-    ////////////                        std::string *, std::string *);
     // Perform a CopyUpdate whose contents were just validated using ValidateCopyUpdate
     void PerformCopyUpdate(const VkCopyDescriptorSet *, const DescriptorSet *);
 
